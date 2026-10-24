@@ -1,0 +1,73 @@
+@import 'tailwindcss';
+
+/*
+ * Cerebro tokens. The Cerebro is always dark. One text style for the whole screen
+ * (Geist Mono, 12px, white at 55%); pure white only for highlights and hover; gold only for cost.
+ */
+:root {
+  --cb-background: oklch(0.13 0.006 265);
+  --cb-top-light: oklch(0.25 0.03 255);
+  --cb-text: oklch(1 0 0 / 55%);
+  --cb-highlight: oklch(1 0 0);
+  --cb-surface: oklch(1 0 0 / 5%);
+  --cb-outline: oklch(1 0 0 / 12%);
+  --cb-cost: oklch(0.84 0.11 85);
+
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  /* Dark, with a cool, subtle light from above. */
+  background:
+    radial-gradient(120% 70% at 50% -10%, var(--cb-top-light), transparent 70%),
+    var(--cb-background);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+
+  /* Components never set font, size, weight or color of text: they inherit this. */
+  font-family: var(--font-geist-mono);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.6;
+  color: var(--cb-text);
+}
+
+:focus-visible {
+  outline: 1px solid var(--cb-highlight);
+  outline-offset: 4px;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: var(--o, 0.2);
+  }
+  50% {
+    opacity: 0.04;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
