@@ -25,10 +25,15 @@ export default defineConfig({
   workers: 3,
   // Firefox takes about 3x longer to start than the others; 30 s was tight under load.
   timeout: 60_000,
-  reporter: process.env.CI ? 'github' : 'list',
+  // In CI, each test in the log and the failures annotated on the run.
+  reporter: process.env.CI ? [['list'], ['github']] : 'list',
+  // Never hang a run: the whole suite has 10 minutes.
+  globalTimeout: 10 * 60_000,
   use: { baseURL: `http://localhost:${PORT}` },
   webServer: {
-    command: `pnpm start -p ${PORT}`,
+    // Next directly, not through pnpm: on Linux and macOS the pnpm wrapper kept the server alive
+    // after the tests and the run never ended.
+    command: `node node_modules/next/dist/bin/next start -p ${PORT}`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: false,
   },
