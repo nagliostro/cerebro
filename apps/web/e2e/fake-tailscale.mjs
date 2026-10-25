@@ -20,5 +20,11 @@ else if (args[0] === 'serve' && args[1] === 'status')
   );
 else if (args[0] === 'serve' && args.at(-1) === 'off')
   writeFileSync(file, JSON.stringify({ target: null }));
-else if (args[0] === 'serve') writeFileSync(file, JSON.stringify({ target: args.at(-1) }));
+else if (args[0] === 'serve' && process.env.FAKE_TAILSCALE_NEEDS_SERVE) {
+  // A network where Serve was never allowed: the real CLI prints a link and waits.
+  out(
+    'Serve is not enabled on your tailnet.\nTo enable, visit:\n\n         https://login.tailscale.com/f/serve?node=TEST\n',
+  );
+  setInterval(() => {}, 1000);
+} else if (args[0] === 'serve') writeFileSync(file, JSON.stringify({ target: args.at(-1) }));
 else process.exit(1);

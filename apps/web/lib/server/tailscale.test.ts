@@ -34,6 +34,18 @@ describe('the remote channel', () => {
     expect(await channelStatus(3000)).toEqual({ state: 'ready', host });
   });
 
+  it('a network where Serve is not allowed yet: the link to allow it, without waiting long', async () => {
+    process.env.FAKE_TAILSCALE_NEEDS_SERVE = '1';
+    const started = Date.now();
+    expect(await serve(3000)).toEqual({
+      ok: false,
+      detail: 'Serve is not enabled on your tailnet.',
+      enable: 'https://login.tailscale.com/f/serve?node=TEST',
+    });
+    expect(Date.now() - started).toBeLessThan(12_000);
+    delete process.env.FAKE_TAILSCALE_NEEDS_SERVE;
+  }, 15_000);
+
   it('not installed when there is no CLI', async () => {
     process.env.CEREBRO_TAILSCALE_BIN = path.join(dir, 'no-tailscale.exe');
     expect(await channelStatus(3000)).toEqual({ state: 'not-installed' });

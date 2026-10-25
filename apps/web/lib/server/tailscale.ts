@@ -33,7 +33,8 @@ function run(bin: string, args: string[], timeoutMs = 20_000): Promise<Run | nul
     });
     p.stdout.on('data', (d) => (out += d));
     p.stderr.on('data', (d) => (err += d));
-    p.on('error', () => resolve(null));
+    // Stopped by the time limit, it still says what it printed (e.g. a link it waits on).
+    p.on('error', () => resolve(out || err ? { code: null, out, err } : null));
     p.on('close', (code) => resolve({ code, out, err }));
   });
 }
@@ -72,14 +73,21 @@ export async function channelStatus(port: number): Promise<ChannelStatus> {
   return serving ? { state: 'serving', host } : { state: 'ready', host };
 }
 
-/** Serves this Cerebro to the owner's devices over HTTPS; the error text when it cannot. */
-export async function serve(port: number): Promise<{ ok: true } | { ok: false; detail: string }> {
+export type ServeResult =
+  | { ok: true }
+  /** `enable`: the owner must first allow Serve (or HTTPS) in their network, at this page. */
+  | { ok: false; detail: string; enable?: string };
+
+/** Serves this Cerebro to the owner's devices over HTTPS; what is missing when it cannot. */
+export async function serve(port: number): Promise<ServeResult> {
   const bin = await cli();
   if (!bin) return { ok: false, detail: 'not-installed' };
-  const r = await run(bin, ['serve', '--bg', '--https=443', `http://127.0.0.1:${port}`]);
+  // When Serve is not yet allowed in the network, the CLI prints a link and waits: not long.
+  const r = await run(bin, ['serve', '--bg', '--https=443', `http://127.0.0.1:${port}`], 8000);
   if (r?.code === 0) return { ok: true };
-  // For example, HTTPS certificates not yet enabled in the owner's network: the CLI says how.
-  return { ok: false, detail: `${r?.err ?? ''}${r?.out ?? ''}`.trim().slice(0, 400) };
+  const text = `${r?.err ?? ''}${r?.out ?? ''}`.trim();
+  const enable = text.match(/https:\/\/login\.tailscale\.com\/\S+/)?.[0];
+  return { ok: false, detail: text.split('\n')[0]!.slice(0, 200), enable };
 }
 
 export async function unserve(): Promise<boolean> {

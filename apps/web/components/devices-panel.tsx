@@ -63,6 +63,8 @@ export function DevicesPanel({
   const [pairing, setPairing] = useState<Pairing | null>(null);
   const [left, setLeft] = useState(0);
   const [note, setNote] = useState<string | null>(null);
+  // Serve must first be allowed in the owner's network, once, at this Tailscale page.
+  const [enable, setEnable] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [install, setInstall] = useState<{ prompt: () => Promise<void> } | null>(null);
   const [now, setNow] = useState(() => initial[0]?.lastSeen ?? 0);
@@ -128,10 +130,13 @@ export function DevicesPanel({
   async function switchRemote(on: boolean) {
     setBusy(true);
     setNote(null);
+    setEnable(null);
     try {
       setChannel(await post<ChannelStatus>('/api/remote', { on }));
     } catch (e) {
-      setNote(m.failed((e as { detail?: string }).detail ?? (e as Error).message));
+      const err = e as { detail?: string; enable?: string; message: string };
+      if (err.enable) setEnable(err.enable);
+      else setNote(m.failed(err.detail ?? err.message));
     }
     setBusy(false);
   }
@@ -303,6 +308,19 @@ export function DevicesPanel({
               >
                 {m.turnOff}
               </button>
+            )}
+            {enable && (
+              <>
+                <p>{m.enableFirst}</p>
+                <a
+                  href={enable}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`${PILL} bg-white/8 hover:text-white`}
+                >
+                  {m.enable}
+                </a>
+              </>
             )}
             {local && !serving && <p>{m.needRemote}</p>}
           </div>

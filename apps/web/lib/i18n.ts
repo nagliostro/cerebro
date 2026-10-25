@@ -171,6 +171,9 @@ const messages = {
       },
       download: 'Baixar o Tailscale',
       turnOn: 'Ligar o acesso remoto',
+      enableFirst:
+        'Falta uma vez só: permitir o Serve na sua rede do Tailscale. Depois, toque de novo em Ligar.',
+      enable: 'Permitir no Tailscale',
       turnOff: 'Desligar',
       failed: (detail: string) => `Não deu para ligar: ${detail}`,
       welcome: 'Este aparelho entrou no Cerebro',
@@ -349,6 +352,9 @@ const messages = {
       },
       download: 'Download Tailscale',
       turnOn: 'Turn on remote access',
+      enableFirst:
+        'One thing first, only once: allow Serve in your Tailscale network. Then tap Turn on again.',
+      enable: 'Allow in Tailscale',
       turnOff: 'Turn off',
       failed: (detail: string) => `Could not turn it on: ${detail}`,
       welcome: 'This device entered the Cerebro',

@@ -23,7 +23,11 @@ export async function POST(request: Request) {
     if (status.state === 'not-installed' || status.state === 'signed-out')
       return Response.json({ error: status.state }, { status: 409 });
     const r = status.state === 'serving' ? ({ ok: true } as const) : await serve(port);
-    if (!r.ok) return Response.json({ error: 'failed', detail: r.detail }, { status: 502 });
+    if (!r.ok)
+      return Response.json(
+        { error: r.enable ? 'enable' : 'failed', detail: r.detail, enable: r.enable },
+        { status: 502 },
+      );
     await setRemoteHost(status.host);
   } else if (b?.on === false) {
     await unserve();
