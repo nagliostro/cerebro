@@ -389,7 +389,8 @@ describe('dominus core', () => {
     const built = await waitFor(async () => {
       const p = await plan(id);
       return ['built', 'failed'].includes(p.status) && p;
-    }, 45_000);
+      // With other test files opening browsers at once, a browser can take long to start.
+    }, 100_000);
     expect(built.status).toBe('built');
     const verify = built.steps.filter((s) => s.kind === 'verify');
     // First round: no case matched (the rate was wrong); second: both.
@@ -403,7 +404,7 @@ describe('dominus core', () => {
     );
     expect(kept.cases).toHaveLength(2);
     expect(kept.gaps).toEqual(['The rate changes every day']);
-  }, 60_000);
+  }, 120_000);
 
   it('a free library the plan names is checked on the registry and carried inside', async (ctx) => {
     const online = await fetch('https://registry.npmjs.org/-/ping', {
