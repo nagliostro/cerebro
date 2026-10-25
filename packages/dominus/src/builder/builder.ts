@@ -390,6 +390,21 @@ export class Builder {
     if (row.target) known.delete(row.target);
     try {
       const plan = parsePlan(result?.text ?? '', known);
+      // A plan for a neuron that is already in the Memória with no application yet (pointed
+      // at, or with the same name) builds that one's first application, never a twin.
+      if (!row.target && plan.ready && plan.creates.length) {
+        const sameName = this.d.graph
+          .view()
+          .neurons.find((n) => normalize(n.name) === normalize(plan.name))?.id;
+        const place = [plan.existing, sameName].find(
+          (id): id is string =>
+            !!id && !existsSync(path.join(appDir(this.d.dataDir, id), 'index.html')),
+        );
+        if (place) {
+          row.target = place;
+          this.d.plans.update(row.id, { target: place });
+        }
+      }
       const target = row.target ? this.d.graph.neuron(row.target) : null;
       if (target) {
         plan.name = target.name;
@@ -519,9 +534,10 @@ export class Builder {
     return row ? this.view(row) : null;
   }
 
-  /** The newest plan still open, for the Memória (no target) or for one neuron's screen. */
+  /** The newest plan still open: any, for the Memória; that neuron's, for its screen. */
   current(target: string | null) {
-    const [row] = this.d.plans.active(target);
+    // The Memória is where the Dominus speaks of everything: any open plan shows there.
+    const [row] = this.d.plans.active(target ?? undefined);
     return row ? this.view(row) : null;
   }
 }

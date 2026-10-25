@@ -209,6 +209,7 @@ export class Plans {
       Pick<
         PlanRow,
         | 'status'
+        | 'target'
         | 'exchanges'
         | 'plan'
         | 'color'
@@ -226,6 +227,7 @@ export class Plans {
   ) {
     const column: Record<string, string> = {
       status: 'status',
+      target: 'target',
       exchanges: 'exchanges',
       plan: 'plan',
       color: 'color',

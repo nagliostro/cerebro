@@ -330,6 +330,17 @@ describe('dominus core', () => {
     expect(await call('GET', '/plans/current?target=garden')).toBeNull();
   });
 
+  it('a plan for a neuron already there without an application builds that one, not a twin', async () => {
+    await call('POST', '/graph/neurons', { name: 'Bikes' });
+    const id = await ask('Bikes: rides of the week');
+    const ready = await until(id, 'ready');
+    expect(ready.target).toBe('bikes');
+    await call('POST', `/plans/${id}/accept`);
+    expect((await until(id, 'built', 'failed')).neuron).toBe('bikes');
+    expect((await neurons()).filter((n) => n.name === 'Bikes')).toHaveLength(1);
+    expect(existsSync(path.join(dir, 'neurons', 'bikes', 'app', 'index.html'))).toBe(true);
+  });
+
   it('a failed or canceled build leaves nothing behind', async () => {
     const before = (await neurons()).length;
     const bad = await ask('Broken: a thing that fails [build-fail]');
