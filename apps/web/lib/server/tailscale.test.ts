@@ -46,6 +46,15 @@ describe('the remote channel', () => {
     delete process.env.FAKE_TAILSCALE_NEEDS_SERVE;
   }, 15_000);
 
+  it('installed but stuck starting is said as it is, not as signed out', async () => {
+    process.env.FAKE_TAILSCALE_STUCK = '1';
+    expect(await channelStatus(3000)).toEqual({
+      state: 'not-running',
+      detail: 'Tailscale is starting. Please wait.',
+    });
+    delete process.env.FAKE_TAILSCALE_STUCK;
+  });
+
   it('not installed when there is no CLI', async () => {
     process.env.CEREBRO_TAILSCALE_BIN = path.join(dir, 'no-tailscale.exe');
     expect(await channelStatus(3000)).toEqual({ state: 'not-installed' });

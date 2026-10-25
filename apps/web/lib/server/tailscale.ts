@@ -15,6 +15,8 @@ const CANDIDATES = [
 export type ChannelStatus =
   | { state: 'not-installed' }
   | { state: 'signed-out' }
+  /** Installed and signed in, but not up: starting, stopped, or stuck (it says why). */
+  | { state: 'not-running'; detail: string }
   | { state: 'ready'; host: string }
   | { state: 'serving'; host: string };
 
@@ -59,14 +61,22 @@ export async function channelStatus(port: number): Promise<ChannelStatus> {
   const bin = await cli();
   if (!bin) return { state: 'not-installed' };
   const status = await run(bin, ['status', '--json']);
-  let info: { BackendState?: string; Self?: { DNSName?: string } } = {};
+  let info: { BackendState?: string; Self?: { DNSName?: string }; Health?: string[] } = {};
   try {
     info = JSON.parse(status?.out ?? '{}');
   } catch {
     // Unreadable: treated as signed out, the safe answer.
   }
   const host = nameOf(info.Self?.DNSName ?? '');
-  if (info.BackendState !== 'Running' || !host) return { state: 'signed-out' };
+  // Only a login it lacks is "signed out"; anything else not running is said as it is.
+  if (
+    info.BackendState === 'NeedsLogin' ||
+    info.BackendState === 'NeedsMachineAuth' ||
+    !info.BackendState
+  )
+    return { state: 'signed-out' };
+  if (info.BackendState !== 'Running' || !host)
+    return { state: 'not-running', detail: (info.Health ?? []).join(' ').slice(0, 300) };
   const serve = await run(bin, ['serve', 'status', '--json']);
   const target = `127.0.0.1:${port}`;
   const serving = !!serve?.out && serve.out.includes(target);

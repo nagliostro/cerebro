@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   const b = (await request.json().catch(() => null)) as { on?: unknown } | null;
   if (b?.on === true) {
     const status = await channelStatus(port);
-    if (status.state === 'not-installed' || status.state === 'signed-out')
+    if (status.state !== 'ready' && status.state !== 'serving')
       return Response.json({ error: status.state }, { status: 409 });
     const r = status.state === 'serving' ? ({ ok: true } as const) : await serve(port);
     if (!r.ok)

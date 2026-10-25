@@ -167,6 +167,8 @@ const messages = {
         'signed-out':
           'O Tailscale está instalado, mas sem login neste computador. Entre nele e volte aqui.',
         ready: (host: string) => `Tailscale pronto neste computador (${host}).`,
+        notRunning: (why: string) =>
+          `O Tailscale deste computador não está conectado${why ? ` (${why})` : ''}. Reconecte-o pelo ícone dele, perto do relógio, e volte aqui.`,
         serving: (url: string) => `Ligado: ${url}, só para os seus aparelhos.`,
       },
       download: 'Baixar o Tailscale',
@@ -348,6 +350,8 @@ const messages = {
         'signed-out':
           'Tailscale is installed, but not signed in on this computer. Sign in and come back.',
         ready: (host: string) => `Tailscale ready on this computer (${host}).`,
+        notRunning: (why: string) =>
+          `Tailscale on this computer is not connected${why ? ` (${why})` : ''}. Reconnect it from its icon near the clock and come back.`,
         serving: (url: string) => `On: ${url}, only for your devices.`,
       },
       download: 'Download Tailscale',

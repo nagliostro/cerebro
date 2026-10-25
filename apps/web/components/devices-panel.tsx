@@ -277,7 +277,9 @@ export function DevicesPanel({
                 ? m.remote.ready(channel.host)
                 : channel.state === 'serving'
                   ? m.remote.serving(`https://${channel.host}`)
-                  : m.remote[channel.state]}
+                  : channel.state === 'not-running'
+                    ? m.remote.notRunning(channel.detail)
+                    : m.remote[channel.state]}
             </p>
             {channel.state === 'not-installed' && (
               <a

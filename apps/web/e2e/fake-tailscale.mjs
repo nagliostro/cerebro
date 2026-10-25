@@ -11,6 +11,12 @@ const args = process.argv.slice(2);
 const out = (o) => process.stdout.write(typeof o === 'string' ? o : JSON.stringify(o));
 
 if (args[0] === 'version') out('1.90.0\n');
+else if (args[0] === 'status' && process.env.FAKE_TAILSCALE_STUCK)
+  out({
+    BackendState: 'NoState',
+    Self: { DNSName: '' },
+    Health: ['Tailscale is starting. Please wait.'],
+  });
 else if (args[0] === 'status') out({ BackendState: 'Running', Self: { DNSName: `${HOST}.` } });
 else if (args[0] === 'serve' && args[1] === 'status')
   out(
