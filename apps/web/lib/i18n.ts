@@ -120,6 +120,8 @@ const messages = {
       adjusted: (name: string) => `${name} · ajustado`,
       buildCost: (cost: string | null) =>
         cost ? `Construir custou ${cost}` : 'Construir: a IA não informou o custo',
+      adjustCost: (cost: string | null) =>
+        cost ? `Ajustar custou ${cost}` : 'Ajustar: a IA não informou o custo',
       failed: {
         'none-ready': 'Nenhuma IA pronta. Conecte uma IA e tente de novo.',
         'all-out-of-quota': 'Todas as IAs estão sem cota agora.',
@@ -252,6 +254,8 @@ const messages = {
       adjusted: (name: string) => `${name} · adjusted`,
       buildCost: (cost: string | null) =>
         cost ? `Building cost ${cost}` : 'Building: the AI did not report the cost',
+      adjustCost: (cost: string | null) =>
+        cost ? `Adjusting cost ${cost}` : 'Adjusting: the AI did not report the cost',
       failed: {
         'none-ready': 'No AI ready. Connect an AI and try again.',
         'all-out-of-quota': 'Every AI is out of quota right now.',

@@ -243,7 +243,9 @@ export function Construction({
           {(target ? b.adjusted : b.built)(neuronName)}
         </p>
         <p className="cb-pill text-(--cb-cost)">
-          {b.buildCost(plan.buildCostUsd === null ? null : b.usd(plan.buildCostUsd))}
+          {(target ? b.adjustCost : b.buildCost)(
+            plan.buildCostUsd === null ? null : b.usd(plan.buildCostUsd),
+          )}
         </p>
         <div className="flex gap-2">
           {target && plan.adjusting && (

@@ -9,7 +9,7 @@ import { existsSync, readFileSync } from 'node:fs';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import type { PlanRow } from '../src/builder/plan.ts';
+import { Plans, type PlanRow } from '../src/builder/plan.ts';
 
 import { coreRequest, isCoreUp } from '../src/client.ts';
 import { corePaths, type CorePaths } from '../src/paths.ts';
@@ -371,5 +371,16 @@ describe('dominus core', () => {
     const done = await finished(id);
     expect(done.status).toBe('done');
     expect((done.result as { resumedFrom: number }).resumedFrom).toBeGreaterThan(0);
+  });
+
+  it('a plan left running without a job fails when the core starts, instead of hanging', async () => {
+    core.kill('SIGKILL');
+    await new Promise((r) => core.on('exit', r));
+    const stored = new Plans(paths.db);
+    const id = stored.create('stuck', 'en', null);
+    stored.close();
+    core = startCore();
+    await waitFor(() => isCoreUp(paths));
+    expect(await plan(id)).toMatchObject({ status: 'failed', error: 'job lost' });
   });
 });

@@ -307,7 +307,14 @@ export class Builder {
     const row = this.mustGet(id);
     const job =
       row.status === 'thinking' ? row.thinkJob : row.status === 'building' ? row.buildJob : null;
-    if (!job) throw new BuildError('nothing running');
+    if (!job) {
+      if (row.status !== 'thinking' && row.status !== 'building')
+        throw new BuildError('nothing running');
+      // Running without a job (it never reached the queue): stopping just closes it.
+      this.d.plans.update(id, { status: 'canceled' });
+      this.changed(id);
+      return;
+    }
     // The job's end (canceled) settles the plan; if the job was already gone, settle it here.
     if (!this.d.cancelJob(job)) void this.settled(job, 'canceled', {});
   }
@@ -464,9 +471,13 @@ export class Builder {
   /** On start: a plan whose job ended while the core was away moves on now. */
   async reconcile() {
     for (const row of this.d.plans.active()) {
-      const job =
-        row.status === 'thinking' ? row.thinkJob : row.status === 'building' ? row.buildJob : null;
-      if (!job) continue;
+      if (row.status !== 'thinking' && row.status !== 'building') continue;
+      const job = row.status === 'thinking' ? row.thinkJob : row.buildJob;
+      if (!job) {
+        // Its job never made it to the queue (the core failed in between): it cannot go on.
+        this.d.plans.update(row.id, { status: 'failed', error: 'job lost' });
+        continue;
+      }
       const j = this.d.queue.get(job);
       if (!j) await this.settled(job, 'failed', { error: 'job lost' });
       else if (j.status === 'done' || j.status === 'failed' || j.status === 'canceled')

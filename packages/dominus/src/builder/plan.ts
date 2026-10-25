@@ -142,6 +142,10 @@ export class Plans {
       );
       CREATE INDEX IF NOT EXISTS plans_recent ON plans (updated_at);
     `);
+    // Columns added after the first version: a database from before gets them here.
+    const columns = this.db.prepare(`PRAGMA table_info(plans)`).all() as { name: string }[];
+    if (!columns.some((c) => c.name === 'adjusting'))
+      this.db.exec(`ALTER TABLE plans ADD COLUMN adjusting INTEGER NOT NULL DEFAULT 0`);
   }
 
   close() {

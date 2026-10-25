@@ -1,11 +1,12 @@
 import { mkdir, mkdtemp, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { DatabaseSync } from 'node:sqlite';
 import os from 'node:os';
 import path from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { BuildCheckError, checkDraft } from '../src/builder/install.ts';
-import { parsePlan, PlanError } from '../src/builder/plan.ts';
+import { parsePlan, PlanError, Plans } from '../src/builder/plan.ts';
 import { BUILD_SYSTEM, buildPrompt, PLAN_SYSTEM, planPrompt } from '../src/builder/prompts.ts';
 import { listFiles, readText, writeText } from '../src/providers/file-tools.ts';
 
@@ -144,5 +145,22 @@ describe('a finished draft', () => {
     await writeFile(path.join(draft, 'run.sh'), 'rm -rf /');
     expect(await checkDraft(draft)).toEqual({ files: 2, bytes: 18 });
     expect(await listFiles(draft)).toEqual(['css/a.css', 'index.html']);
+  });
+});
+
+describe('the plans table', () => {
+  it('a database from before the adjusting column gets it', () => {
+    const file = path.join(dir, 'old.db');
+    const old = new DatabaseSync(file);
+    old.exec(`CREATE TABLE plans (id TEXT PRIMARY KEY, request TEXT NOT NULL, locale TEXT NOT NULL,
+      target TEXT, status TEXT NOT NULL, exchanges TEXT NOT NULL DEFAULT '[]', plan TEXT, color TEXT,
+      estimate TEXT, steps TEXT NOT NULL DEFAULT '[]', think_job TEXT, build_job TEXT,
+      think_cost REAL NOT NULL DEFAULT 0, build_cost REAL, neuron TEXT, error TEXT,
+      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, started_at INTEGER)`);
+    old.close();
+    const plans = new Plans(file);
+    const id = plans.create('r', 'en', null);
+    expect(plans.get(id)).toMatchObject({ status: 'thinking', adjusting: false });
+    plans.close();
   });
 });
