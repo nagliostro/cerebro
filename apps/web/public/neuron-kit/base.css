@@ -62,6 +62,7 @@ p {
 }
 .cb-linha {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -77,6 +78,8 @@ p {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  /* On a phone the row wraps; a button's own words never break. */
+  white-space: nowrap;
 }
 .cb-botao {
   background: #fff;
@@ -96,10 +99,16 @@ p {
   border-radius: 999px;
   background: oklch(1 0 0 / 6%);
 }
+.cb-abas {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
 .cb-abas button {
   min-height: 36px;
   padding: 0 16px;
   border-radius: 999px;
+  white-space: nowrap;
 }
 .cb-abas button[aria-selected='true'] {
   background: #fff;

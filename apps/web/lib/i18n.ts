@@ -96,6 +96,9 @@ const messages = {
       checks: 'Como saber que ficou pronto',
       limits: 'Fica para depois',
       existing: (name: string) => `${name} já parece cuidar disso.`,
+      adjustExisting: (name: string) => `Ajustar ${name}`,
+      createAnyway: 'Criar um novo',
+      createAnywayText: (name: string) => `Quero um neurônio novo, separado de ${name}.`,
       open: (name: string) => `Abrir ${name}`,
       usd: (x: number) =>
         `US$ ${x.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: x > 0 && x < 0.01 ? 4 : 2 })}`,
@@ -279,6 +282,9 @@ const messages = {
       checks: 'How to tell it is ready',
       limits: 'Left for later',
       existing: (name: string) => `${name} seems to do this already.`,
+      adjustExisting: (name: string) => `Adjust ${name}`,
+      createAnyway: 'Make a new one',
+      createAnywayText: (name: string) => `I want a new neuron, apart from ${name}.`,
       open: (name: string) => `Open ${name}`,
       usd: (x: number) =>
         `US$ ${x.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: x > 0 && x < 0.01 ? 4 : 2 })}`,

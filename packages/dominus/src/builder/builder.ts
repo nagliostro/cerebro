@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+
 import { median, nowMs } from '../clock.ts';
 import type { Contracts } from '../contract.ts';
 import { colorOf, DOMINUS_ID, type Graph } from '../graph.ts';
@@ -92,6 +95,7 @@ export class Builder {
       collections: this.d.contracts
         .contract(n.id)
         .collections.map((c) => ({ name: c.name, fields: c.fields.map((f) => f.name) })),
+      built: existsSync(path.join(appDir(this.d.dataDir, n.id), 'index.html')),
     }));
   }
 

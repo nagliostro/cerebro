@@ -111,6 +111,20 @@ test('a neuron without an application gets its first one from its own screen', a
   await expect(asked).toHaveText('uma lista de fontes para consultar');
 });
 
+test('when an existing neuron already does it, the plan offers to adjust that one', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await ask(page, 'Compromissos: os do mês [existing:agenda]');
+  await expect(plan(page)).toContainText('Agenda já parece cuidar disso.');
+  await expect(plan(page).getByRole('button', { name: 'Construir' })).toHaveCount(0);
+  await plan(page).getByRole('button', { name: 'Ajustar Agenda' }).click();
+  await expect(page).toHaveURL('/neuron/agenda');
+  await expect(plan(page).getByRole('button', { name: 'Ajustar' })).toBeVisible();
+  await plan(page).getByRole('button', { name: 'Rejeitar' }).click();
+  await expect(plan(page)).toBeHidden();
+});
+
 test('passes WCAG 2.2 AA with the plan open', async ({ page }) => {
   await page.goto('/');
   await ask(page, 'Música: as aulas da semana');

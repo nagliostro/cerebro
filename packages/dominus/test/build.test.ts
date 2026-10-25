@@ -64,6 +64,10 @@ describe('the plan from the AI', () => {
     expect(() => parsePlan(JSON.stringify({ ready: true, name: 'X', creates: [] }), known)).toThrow(
       PlanError,
     );
+    // "Agenda already does this" is a plan too, with nothing to create.
+    expect(
+      parsePlan(JSON.stringify({ ready: true, name: 'X', creates: [], existing: 'agenda' }), known),
+    ).toMatchObject({ ready: true, existing: 'agenda', creates: [] });
   });
 
   it('the prompts carry the language, the request, the answers and the other neurons', () => {

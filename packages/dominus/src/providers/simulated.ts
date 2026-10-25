@@ -35,6 +35,18 @@ function plan(prompt: string) {
   // "Plants: water them every week" → "Plants"; otherwise the first word.
   const head = request.includes(':') ? request.split(':')[0]! : request.split(/\s+/)[0]!;
   const name = adjusting ?? head.charAt(0).toUpperCase() + head.slice(1);
+  // [existing:<neuron>] answers that an existing neuron already does this.
+  const existing = adjusting ? null : (request.match(/\[existing:([a-z0-9-]+)\]/)?.[1] ?? null);
+  if (existing)
+    return {
+      ready: true,
+      questions: [],
+      name,
+      role: 'life',
+      understood: request,
+      creates: [],
+      existing,
+    };
   return {
     ready: true,
     questions: [],

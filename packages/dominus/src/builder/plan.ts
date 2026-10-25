@@ -330,7 +330,8 @@ export function parsePlan(answer: string, known: Set<string>): Plan {
     limits: texts(raw.limits, 3, 200),
     existing: typeof raw.existing === 'string' && known.has(raw.existing) ? raw.existing : null,
   };
-  if (ready && (!plan.name || !plan.creates.length))
+  // "An existing neuron already does this" is an answer of its own: nothing new to create.
+  if (ready && !plan.existing && (!plan.name || !plan.creates.length))
     throw new PlanError('a ready plan needs a name and what it creates');
   return plan;
 }

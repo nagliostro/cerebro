@@ -27,6 +27,8 @@ Rules:
   to false and ask at most 3 short questions. Otherwise plan with sensible defaults and say them.
 - Keep the first version small and useful: what the owner asked, done well, nothing more.
 - If an existing neuron already does this, say so in "existing" (its id) instead of a new one.
+  One with no application yet does nothing: it may be the right place, but say "existing" only
+  when its name clearly is the same area (the owner can then build its application).
 - Propose a link only to an existing neuron and collection listed below, and only if it helps.
 - Collection and field names: lowercase letters, digits, "-" or "_", starting with a letter.
 - Write every text for the owner in the language given, plain and short, no jargon.
@@ -51,6 +53,8 @@ export type NeuronSummary = {
   name: string;
   role: string;
   collections: { name: string; fields: string[] }[];
+  /** It has an application already; without one, it is only a name in the Memória. */
+  built?: boolean;
 };
 
 export type Exchange = { kind: 'answer' | 'change'; text: string };
@@ -85,7 +89,7 @@ export function planPrompt(input: {
   if (!input.neurons.length) lines.push('(none yet)');
   for (const n of input.neurons)
     lines.push(
-      `- ${n.id} "${n.name}" (${n.role})` +
+      `- ${n.id} "${n.name}" (${n.role}${n.built === false ? ', no application yet' : ''})` +
         (n.collections.length
           ? `: ${n.collections.map((c) => `${c.name}(${c.fields.join(', ')})`).join('; ')}`
           : ''),

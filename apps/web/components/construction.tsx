@@ -175,10 +175,10 @@ export function Construction({
     return () => window.removeEventListener('keydown', onKey);
   }, [running, stop]);
 
-  async function start(request: string) {
+  async function start(request: string, on = target?.id) {
     setProblem(null);
     try {
-      const { id } = await call<{ id: string }>('/api/plans', { request, target: target?.id });
+      const { id } = await call<{ id: string }>('/api/plans', { request, target: on });
       await load(id);
       return true;
     } catch (e) {
@@ -358,6 +358,12 @@ export function Construction({
           onAnswer={(text) => act('answer', text)}
           onAccept={() => void act('accept')}
           onReject={() => void act('reject')}
+          onAdjust={async (neuron) => {
+            // The same request, as an adjustment of that neuron, on its own screen.
+            const request = plan.request;
+            await act('reject');
+            if (await start(request, neuron)) router.push(`/neuron/${neuron}`);
+          }}
         />
       )}
     </>

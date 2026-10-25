@@ -113,6 +113,7 @@ export function PlanPanel({
   onAnswer,
   onAccept,
   onReject,
+  onAdjust,
 }: {
   plan: PlanView;
   others: Other[];
@@ -122,6 +123,8 @@ export function PlanPanel({
   onAnswer: (text: string) => Promise<boolean>;
   onAccept: () => void;
   onReject: () => void;
+  /** The plan says an existing neuron already does this: adjust that one instead. */
+  onAdjust: (neuron: string) => void;
 }) {
   const [changing, setChanging] = useState(false);
   const [text, setText] = useState('');
@@ -130,6 +133,8 @@ export function PlanPanel({
   const asking = plan.status === 'questions';
   const adjusting = !!plan.target;
   const nameOf = (id: string) => others.find((o) => o.id === id);
+  // Nothing new to make: an existing neuron is the place for it.
+  const elsewhere = !asking && !!p.existing && !p.creates.length ? nameOf(p.existing!) : undefined;
 
   // The main action takes the focus when the plan arrives, so the keyboard is already there.
   useEffect(() => {
@@ -195,16 +200,18 @@ export function PlanPanel({
             <Section title={m.understood}>
               <p>{p.understood}</p>
             </Section>
-            <Section title={adjusting ? m.changesList : m.creates}>
-              <Numbered
-                items={p.creates.map((c) => (
-                  <Fragment key={c.name}>
-                    <span className="text-(--cb-highlight)">{c.name}</span>
-                    {c.what && ` · ${c.what}`}
-                  </Fragment>
-                ))}
-              />
-            </Section>
+            {!elsewhere && (
+              <Section title={adjusting ? m.changesList : m.creates}>
+                <Numbered
+                  items={p.creates.map((c) => (
+                    <Fragment key={c.name}>
+                      <span className="text-(--cb-highlight)">{c.name}</span>
+                      {c.what && ` · ${c.what}`}
+                    </Fragment>
+                  ))}
+                />
+              </Section>
+            )}
             {p.collections.length > 0 && (
               <Section title={m.data}>
                 <div className="grid grid-cols-[auto_1fr] gap-x-2.5">
@@ -275,6 +282,28 @@ export function PlanPanel({
                 {m.reject}
               </button>
             )}
+          </>
+        ) : elsewhere ? (
+          <>
+            <button
+              ref={primary}
+              type="button"
+              onClick={() => onAdjust(elsewhere.id)}
+              className={PRIMARY}
+            >
+              {m.adjustExisting(elsewhere.name)}
+            </button>
+            <button
+              type="button"
+              onClick={() => void onAnswer(m.createAnywayText(elsewhere.name))}
+              className={SOFT}
+            >
+              {m.createAnyway}
+            </button>
+            <span className="flex-1" />
+            <button type="button" onClick={onReject} className={PLAIN}>
+              {m.reject}
+            </button>
           </>
         ) : (
           <>
