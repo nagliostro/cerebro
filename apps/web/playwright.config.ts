@@ -71,7 +71,7 @@ export default defineConfig({
       widths.map((w) => ({
         name: `${engine}-${w.name}`,
         dependencies: ['setup'],
-        testIgnore: /(build|devices)\.spec\.ts/,
+        testIgnore: /(build|devices|resilience)\.spec\.ts/,
         use: {
           ...engines[engine],
           viewport: w.viewport,
@@ -93,7 +93,7 @@ export default defineConfig({
         dependencies: i
           ? ['build-phone']
           : chosen.flatMap((engine) => widths.map((x) => `${engine}-${x.name}`)),
-        testMatch: /(build|devices)\.spec\.ts/,
+        testMatch: /(build|devices|resilience)\.spec\.ts/,
         use: {
           ...engines.chromium,
           viewport: w.viewport,

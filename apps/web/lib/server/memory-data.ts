@@ -1,4 +1,4 @@
-import { coreRequest } from '@cerebro/dominus/client';
+import { coreRequest } from '@/lib/server/core';
 
 import type { MemoryNeuron } from '@/components/memory';
 import type { Messages } from '@/lib/i18n';
@@ -14,10 +14,13 @@ const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
 /** The graph as the Memória draws it, in the owner's language. Empty when the core is down. */
 export async function memoryData(m: Messages) {
   let graph: GraphView;
+  let down = false;
   try {
     graph = await coreRequest<GraphView>('GET', '/graph');
   } catch {
+    // Not "no neurons": the Dominus did not answer, and the status already says so.
     graph = { neurons: [], synapses: [], links: [] };
+    down = true;
   }
   const heaviest = Math.max(0, ...graph.neurons.map((n) => n.weight));
   // A synapse at full brightness from about 3 conversations of recent weight.
@@ -39,6 +42,8 @@ export async function memoryData(m: Messages) {
     neurons,
     synapses,
     links: graph.links.map((l) => pairKey(l.reader, l.target)),
-    count: m.neuronCount(neurons.length, neurons.filter((n) => n.role === 'craft').length),
+    count: down
+      ? null
+      : m.neuronCount(neurons.length, neurons.filter((n) => n.role === 'craft').length),
   };
 }

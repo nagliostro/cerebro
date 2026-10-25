@@ -384,6 +384,20 @@ describe('dominus core', () => {
     expect((done.result as { resumedFrom: number }).resumedFrom).toBeGreaterThan(0);
   });
 
+  it('a core killed in the middle of a build finishes it after it restarts', async () => {
+    const id = await ask('Crash: built across a restart');
+    await until(id, 'ready');
+    await call('POST', `/plans/${id}/accept`);
+    await waitFor(async () => (await plan(id)).steps.some((s) => s.kind === 'file'));
+    core.kill('SIGKILL');
+    await new Promise((r) => core.on('exit', r));
+    core = startCore();
+    await waitFor(() => isCoreUp(paths));
+    const done = await until(id, 'built', 'failed');
+    expect(done.status).toBe('built');
+    expect(existsSync(path.join(dir, 'neurons', done.neuron!, 'app', 'index.html'))).toBe(true);
+  });
+
   it('a plan left running without a job fails when the core starts, instead of hanging', async () => {
     core.kill('SIGKILL');
     await new Promise((r) => core.on('exit', r));

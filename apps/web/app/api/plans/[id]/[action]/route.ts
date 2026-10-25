@@ -1,4 +1,4 @@
-import { coreRequest } from '@cerebro/dominus/client';
+import { coreRequest } from '@/lib/server/core';
 
 import { fromCore, hasSession, unauthorized, validPlanId } from '@/lib/server/require-session';
 

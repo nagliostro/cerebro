@@ -40,7 +40,7 @@ export default async function Home() {
             { text: m.version(pkg.version) },
             { text: m.dataAt(dataDir()) },
             ...status,
-            { text: memory.count },
+            ...(memory.count ? [{ text: memory.count }] : []),
           ],
           neurons: memory.neurons,
           synapses: memory.synapses,

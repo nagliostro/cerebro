@@ -1,4 +1,4 @@
-import { coreRequest } from '@cerebro/dominus/client';
+import { coreRequest } from '@/lib/server/core';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 

@@ -1,4 +1,4 @@
-import { coreRequest } from '@cerebro/dominus/client';
+import { coreRequest } from '@/lib/server/core';
 import type { WindowStatus } from '@cerebro/dominus/quota';
 import type { Capabilities, HealthCheck } from '@cerebro/dominus/types';
 

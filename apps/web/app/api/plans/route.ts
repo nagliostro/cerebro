@@ -1,4 +1,4 @@
-import { coreRequest } from '@cerebro/dominus/client';
+import { coreRequest } from '@/lib/server/core';
 
 import { pickLocale } from '@/lib/i18n';
 import { fromCore, hasSession, unauthorized, validNeuronId } from '@/lib/server/require-session';
