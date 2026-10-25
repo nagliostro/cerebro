@@ -25,6 +25,8 @@ export type JobRow = {
   created_at: number;
   started_at: number | null;
   finished_at: number | null;
+  /** Waiting (e.g. for a quota to reset): not taken before this real time. */
+  not_before: number | null;
 };
 
 /** A job as the core shows it: JSON fields parsed, times as real-time milliseconds. */
@@ -92,7 +94,19 @@ export class Queue {
         PRIMARY KEY (provider, window)
       );
       CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS quota_readings (
+        provider TEXT NOT NULL,
+        window TEXT NOT NULL,
+        used REAL NOT NULL,
+        resets_at TEXT,
+        measured_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS quota_readings_at ON quota_readings (provider, window, measured_at);
     `);
+    // Columns added after the first version: a database from before gets them here.
+    const columns = this.db.prepare(`PRAGMA table_info(jobs)`).all() as { name: string }[];
+    if (!columns.some((c) => c.name === 'not_before'))
+      this.db.exec(`ALTER TABLE jobs ADD COLUMN not_before INTEGER`);
   }
 
   close() {
@@ -115,8 +129,51 @@ export class Queue {
       `INSERT OR REPLACE INTO quota (provider, window, used, resets_at, source, blocked, measured_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
     );
-    for (const w of windows)
-      stmt.run(provider, w.name, w.used, w.resetsAt, w.source, w.blocked ? 1 : 0, nowMs());
+    const history = this.db.prepare(
+      `INSERT INTO quota_readings (provider, window, used, resets_at, measured_at) VALUES (?, ?, ?, ?, ?)`,
+    );
+    const at = nowMs();
+    for (const w of windows) {
+      stmt.run(provider, w.name, w.used, w.resetsAt, w.source, w.blocked ? 1 : 0, at);
+      history.run(provider, w.name, w.used, w.resetsAt, at);
+    }
+  }
+
+  /** Every reading of one window since `since`, oldest first: the meter's raw material. */
+  readings(provider: string, window: QuotaWindow['name'], since: number) {
+    return (
+      this.db
+        .prepare(
+          `SELECT used, resets_at, measured_at FROM quota_readings
+           WHERE provider = ? AND window = ? AND measured_at >= ? ORDER BY measured_at`,
+        )
+        .all(provider, window, since) as {
+        used: number;
+        resets_at: string | null;
+        measured_at: number;
+      }[]
+    ).map((r) => ({ used: r.used, resetsAt: r.resets_at, measuredAt: r.measured_at }));
+  }
+
+  /** Finished asks of one provider since `since`: what each kind of task cost and whether it worked. */
+  asks(provider: string, since: number) {
+    return this.db
+      .prepare(
+        `SELECT status, finished_at AS finishedAt,
+                json_extract(payload, '$.kind') AS kind, json_extract(payload, '$.role') AS role,
+                json_extract(payload, '$.mode') AS mode, json_extract(result, '$.costUsd') AS costUsd
+         FROM jobs WHERE type = 'ask' AND status IN ('done', 'failed')
+           AND json_extract(payload, '$.provider') = ? AND finished_at >= ?
+         ORDER BY finished_at`,
+      )
+      .all(provider, since) as {
+      status: 'done' | 'failed';
+      finishedAt: number;
+      kind: string | null;
+      role: string;
+      mode: string;
+      costUsd: number | null;
+    }[];
   }
 
   quota(provider: string): StoredQuota[] {
@@ -175,11 +232,34 @@ export class Queue {
       .prepare(
         `UPDATE jobs SET status = 'running', attempts = attempts + 1, started_at = ?
          WHERE id = (SELECT id FROM jobs WHERE status = 'queued'
+                       AND (not_before IS NULL OR not_before <= ?2)
                      ORDER BY priority DESC, created_at LIMIT 1)
          RETURNING *`,
       )
-      .get(nowMs());
+      .get(nowMs(), nowMs());
     return (row as JobRow | undefined) ?? null;
+  }
+
+  /**
+   * Back to the queue until `until`, keeping the checkpoint and without spending an attempt:
+   * waiting for a quota to reset is not a failure.
+   */
+  defer(id: string, until: number, reason: string) {
+    this.db
+      .prepare(
+        `UPDATE jobs SET status = 'queued', not_before = ?, error = ?, worker_pid = NULL,
+                attempts = MAX(attempts - 1, 0)
+         WHERE id = ? AND status = 'running'`,
+      )
+      .run(until, reason, id);
+  }
+
+  /** When the next waiting job may run, so the core sets one timer instead of polling. */
+  nextWakeup(): number | null {
+    const row = this.db
+      .prepare(`SELECT MIN(not_before) AS at FROM jobs WHERE status = 'queued' AND not_before > ?`)
+      .get(nowMs()) as { at: number | null };
+    return row.at;
   }
 
   setWorker(id: string, pid: number) {

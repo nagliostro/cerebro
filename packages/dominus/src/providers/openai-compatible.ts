@@ -17,6 +17,8 @@ export type ApiConnection = {
   /** Vault name of the key; absent for local servers that need none (Ollama). */
   keyName?: string;
   billing?: 'api' | 'local';
+  /** The most the owner wants to spend in a month, in US$. */
+  monthlyCapUsd?: number;
 };
 
 type Usage = { prompt_tokens?: number; completion_tokens?: number; cost?: number };
@@ -37,12 +39,15 @@ export function openAiCompatible(conn: ApiConnection, vault: Vault): AiProvider 
   return {
     id: conn.id,
     name: conn.name,
+    monthlyCapUsd: conn.monthlyCapUsd,
     capabilities: {
       billing: conn.billing ?? 'api',
       // Agent mode needs tools run by the Cerebro itself; it comes with neuron building.
       modes: ['text'],
       sessions: false,
       quotaSource: 'none',
+      // The month window, when there is a cap, is measured by the Dominus itself.
+      windows: [],
     },
 
     async check(): Promise<HealthCheck> {

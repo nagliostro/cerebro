@@ -88,6 +88,10 @@ export function claudeCode(opts: Options): AiProvider {
       modes: ['text', 'agent'],
       sessions: true,
       quotaSource: 'official',
+      windows: [
+        { name: 'session', lengthMs: 5 * 3600_000 },
+        { name: 'week', lengthMs: 7 * 86_400_000 },
+      ],
     },
 
     async check(): Promise<HealthCheck> {

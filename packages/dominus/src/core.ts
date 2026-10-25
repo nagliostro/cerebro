@@ -10,9 +10,12 @@ import { fileURLToPath } from 'node:url';
 import { clockState, nowMs, setOffset, syncClock } from './clock.ts';
 import { corePaths } from './paths.ts';
 import { loadProviders } from './providers/index.ts';
-import type { HealthCheck } from './providers/types.ts';
+import type { AiProvider, AskMode, HealthCheck, ModelRole } from './providers/types.ts';
+import { buildEstimate, guard } from './quota/guard.ts';
+import { route as pickRoute, type Candidate, type RouteRequest } from './quota/router.ts';
+import { windowStatus } from './quota/status.ts';
 import { Queue, toJob, type JobRow, type NewJob } from './queue.ts';
-import { isAskPayload, jobTypes } from './worker.ts';
+import { isAskPayload, jobTypes, type AskPayload } from './worker.ts';
 
 // The Dominus core: an event bus, a durable queue and a supervisor that runs each AI job in a
 // worker process of its own. The core never awaits the AI; it only reacts to events (a request,
@@ -79,9 +82,20 @@ function emit(type: string, data: object) {
 function dispatch() {
   while (running.size < MAX_WORKERS) {
     const job = queue.claim();
-    if (!job) return;
+    if (!job) break;
     startWorker(job);
   }
+  scheduleWakeup();
+}
+
+// Jobs waiting for a quota to reset: one timer for the earliest, set again after each change.
+let wakeup: NodeJS.Timeout | undefined;
+function scheduleWakeup() {
+  clearTimeout(wakeup);
+  const at = queue.nextWakeup();
+  if (at === null) return;
+  // Timers hold at most ~24 days; a later wake-up just sets the timer again.
+  wakeup = setTimeout(dispatch, Math.min(Math.max(0, at - nowMs()) + 50, 2 ** 31 - 1));
 }
 
 type FromWorker =
@@ -90,6 +104,7 @@ type FromWorker =
   | { kind: 'quota'; provider: string; windows: Parameters<Queue['saveQuota']>[1] }
   | { kind: 'event'; event: object }
   | { kind: 'done'; result: unknown }
+  | { kind: 'wait'; until: number; error: string }
   | { kind: 'canceled' | 'error'; error: string };
 
 function startWorker(job: JobRow) {
@@ -119,7 +134,12 @@ function startWorker(job: JobRow) {
       emit('quota.updated', { provider: msg.provider });
     } else if (msg.kind === 'event') emit('job.progress', { id: job.id, ...msg.event });
     else if (msg.kind === 'done') settle(r, 'done', { result: msg.result });
-    else if (msg.kind === 'canceled') settle(r, 'canceled', { error: 'canceled by the owner' });
+    else if (msg.kind === 'wait') {
+      // Not a failure: back to the queue, keeping the checkpoint, until the window resets.
+      r.settled = true;
+      queue.defer(job.id, msg.until, msg.error);
+      emit('job.waiting', { id: job.id, until: msg.until, reason: msg.error });
+    } else if (msg.kind === 'canceled') settle(r, 'canceled', { error: 'canceled by the owner' });
     else if (msg.kind === 'error') settle(r, 'failed', { error: msg.error });
   });
 
@@ -197,6 +217,52 @@ async function providerList(fresh: boolean) {
   );
 }
 
+function quota(p: AiProvider) {
+  return windowStatus(queue, p, nowMs());
+}
+
+/** What the Router needs to know about each connection, all from the database and the cache. */
+async function candidates(kind: string | undefined): Promise<Candidate[]> {
+  const healthy = new Map((await providerList(false)).map((p) => [p.id, p.health.ok]));
+  const since = nowMs() - 30 * 86_400_000;
+  return [...loadProviders(paths).values()].map((p) => ({
+    id: p.id,
+    capabilities: p.capabilities,
+    healthy: healthy.get(p.id) ?? false,
+    windows: quota(p),
+    history: queue
+      .asks(p.id, since)
+      .filter((a) => (a.kind ?? undefined) === kind)
+      .map((a) => ({ role: a.role, ok: a.status === 'done', costUsd: a.costUsd })),
+  }));
+}
+
+const modeOf = (v: unknown): AskMode | null => (v === 'text' || v === 'agent' ? v : null);
+
+function routeRequest(body: unknown): RouteRequest {
+  const b = body as {
+    mode?: unknown;
+    kind?: unknown;
+    lock?: { provider?: unknown; role?: unknown };
+  };
+  const mode = modeOf(b?.mode);
+  if (!mode) throw new BadRequest('invalid mode');
+  const kind = typeof b.kind === 'string' && b.kind.length <= 40 ? b.kind : undefined;
+  const lock =
+    typeof b.lock?.provider === 'string'
+      ? { provider: b.lock.provider, role: b.lock.role as ModelRole | undefined }
+      : undefined;
+  return { mode, kind, lock };
+}
+
+/** An ask for provider "auto" is routed when it enters the queue; the choice is recorded. */
+async function resolveAuto(payload: AskPayload): Promise<AskPayload> {
+  if (payload.provider !== 'auto') return payload;
+  const r = pickRoute({ mode: payload.mode, kind: payload.kind }, await candidates(payload.kind));
+  if (!r.ok) throw new BadRequest(r.why);
+  return { ...payload, provider: r.provider, role: r.role, route: r.reasons } as AskPayload;
+}
+
 class BadRequest extends Error {}
 
 /** Checks a new job before it enters the queue, so the queue holds only runnable work. */
@@ -206,6 +272,7 @@ function validJob(body: unknown): NewJob {
     throw new BadRequest('unknown job type');
   if (j.type === 'ask') {
     if (!isAskPayload(j.payload)) throw new BadRequest('invalid ask payload');
+    if (j.payload.provider === 'auto') return j; // routed by the caller, then checked again
     const provider = loadProviders(paths).get(j.payload.provider);
     if (!provider) throw new BadRequest('unknown provider');
     if (!provider.capabilities.modes.includes(j.payload.mode))
@@ -257,7 +324,10 @@ async function route(req: IncomingMessage, res: ServerResponse) {
   const jobMatch = url.pathname.match(/^\/jobs\/([\w-]+)(\/cancel)?$/);
 
   if (req.method === 'POST' && url.pathname === '/jobs') {
-    const id = queue.enqueue(validJob(await readBody(req)));
+    let job = validJob(await readBody(req));
+    if (job.type === 'ask' && (job.payload as AskPayload).provider === 'auto')
+      job = validJob({ ...job, payload: await resolveAuto(job.payload as AskPayload) });
+    const id = queue.enqueue(job);
     emit('job.queued', { id });
     dispatch();
     return json(201, { id });
@@ -279,11 +349,30 @@ async function route(req: IncomingMessage, res: ServerResponse) {
       200,
       [...loadProviders(paths).values()].map((p) => ({
         provider: p.id,
+        name: p.name,
         source: p.capabilities.quotaSource,
-        windows: queue.quota(p.id),
+        windows: quota(p),
         spentLast7Days: queue.spent(p.id, week),
       })),
     );
+  }
+  // The Router's choice for a request, without running it.
+  if (req.method === 'POST' && url.pathname === '/route') {
+    const r = routeRequest(await readBody(req));
+    return json(200, pickRoute(r, await candidates(r.kind)));
+  }
+  // The Guard before a big job: the estimate (or a given cost) against each window.
+  if (req.method === 'POST' && url.pathname === '/guard') {
+    const b = (await readBody(req)) as { provider?: unknown; kind?: unknown; costUsd?: unknown };
+    const p = typeof b.provider === 'string' ? loadProviders(paths).get(b.provider) : undefined;
+    if (!p) throw new BadRequest('unknown provider');
+    const kind = typeof b.kind === 'string' ? b.kind : 'build';
+    const past = queue
+      .asks(p.id, nowMs() - 90 * 86_400_000)
+      .filter((a) => a.kind === kind && a.status === 'done')
+      .map((a) => a.costUsd ?? 0);
+    const cost = typeof b.costUsd === 'number' && b.costUsd > 0 ? b.costUsd : buildEstimate(past);
+    return json(200, { costUsd: cost, ...guard(cost, quota(p), nowMs()) });
   }
   if (req.method === 'GET' && url.pathname === '/events') {
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });

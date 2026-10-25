@@ -9,7 +9,10 @@ import { DOMINUS_COLOR, NeuronDot } from './neuron-dot';
  * the version, where the data lives and that no AI is connected yet. Esc or a second touch
  * hides it again.
  */
-export function Dominus({ label, lines }: { label: string; lines: string[] }) {
+/** A line of the status; `cost` lines are in gold, the color reserved for what is spent. */
+export type StatusLine = { text: string; cost?: boolean };
+
+export function Dominus({ label, lines }: { label: string; lines: StatusLine[] }) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -35,7 +38,9 @@ export function Dominus({ label, lines }: { label: string; lines: string[] }) {
         className="absolute top-full mt-3 w-[min(90vw,32rem)] text-center break-words"
       >
         {lines.map((line) => (
-          <p key={line}>{line}</p>
+          <p key={line.text} className={line.cost ? 'text-(--cb-cost)' : undefined}>
+            {line.text}
+          </p>
         ))}
       </div>
     </div>

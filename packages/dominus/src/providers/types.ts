@@ -21,6 +21,8 @@ export type Capabilities = {
   sessions: boolean;
   /** Where quota readings come from: the provider itself, the Dominus's estimate, or nowhere. */
   quotaSource: 'official' | 'estimated' | 'none';
+  /** The length of each window it reports, so the Dominus can tell its pace. */
+  windows: readonly { name: QuotaWindow['name']; lengthMs: number }[];
 };
 
 /** One usage limit, normalized. A plan: session and week; an API: month cap or balance. */
@@ -82,6 +84,8 @@ export type HealthCheck =
 export interface AiProvider {
   /** Stable id of this connection, used in jobs and quota. */
   id: string;
+  /** A spending cap the owner set (APIs): becomes a "month" window the Dominus measures. */
+  monthlyCapUsd?: number;
   /** What the owner sees, e.g. "Claude Code" or "OpenAI". */
   name: string;
   capabilities: Capabilities;

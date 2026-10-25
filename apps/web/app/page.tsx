@@ -16,7 +16,11 @@ export default async function Home() {
       <h1 className="sr-only">Cerebro</h1>
       <Dominus
         label={m.dominus}
-        lines={[m.version(pkg.version), m.dataAt(dataDir()), ...(await aiStatus(m))]}
+        lines={[
+          { text: m.version(pkg.version) },
+          { text: m.dataAt(dataDir()) },
+          ...(await aiStatus(m)),
+        ]}
       />
     </main>
   );

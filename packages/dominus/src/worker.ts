@@ -17,6 +17,10 @@ export type AskPayload = {
   effort?: 'low' | 'medium' | 'high';
   cwd?: string;
   sessionId?: string;
+  /** The kind of task ("chat", "build"...), so the Router learns what works for each. */
+  kind?: string;
+  /** Why the Router chose this connection and role, when it did. */
+  route?: string[];
 };
 
 export function isAskPayload(p: unknown): p is AskPayload {
@@ -26,7 +30,8 @@ export function isAskPayload(p: unknown): p is AskPayload {
     MODEL_ROLES.includes(a.role) &&
     (a.mode === 'text' || a.mode === 'agent') &&
     typeof a.prompt === 'string' &&
-    a.prompt.length > 0
+    a.prompt.length > 0 &&
+    (a.kind === undefined || (typeof a.kind === 'string' && a.kind.length <= 40))
   );
 }
 
@@ -39,6 +44,14 @@ const abort = new AbortController();
 
 type Handler = (payload: unknown, checkpoint: unknown) => Promise<unknown>;
 
+class QuotaWait extends Error {
+  until: number;
+  constructor(until: number, window: string) {
+    super(`quota window ${window} ran out`);
+    this.until = until;
+  }
+}
+
 const handlers: Record<string, Handler> = {
   /** The Dominus asks an AI by role; the adapter decides how. Quota goes back to the core. */
   async ask(payload) {
@@ -47,10 +60,20 @@ const handlers: Record<string, Handler> = {
     if (!provider) throw new Error(`unknown provider: ${payload.provider}`);
     if (!provider.capabilities.modes.includes(payload.mode))
       throw new Error(`${provider.name} cannot run in ${payload.mode} mode`);
-    return provider.ask({ ...payload, signal: abort.signal }, (e) => {
-      if (e.type === 'quota') send({ kind: 'quota', provider: provider.id, windows: e.windows });
-      else send({ kind: 'event', event: e });
-    });
+    let blocked: { name: string; resetsAt: string | null } | undefined;
+    try {
+      return await provider.ask({ ...payload, signal: abort.signal }, (e) => {
+        if (e.type === 'quota') {
+          send({ kind: 'quota', provider: provider.id, windows: e.windows });
+          blocked = e.windows.find((w) => w.blocked) ?? blocked;
+        } else send({ kind: 'event', event: e });
+      });
+    } catch (e) {
+      // The provider said a window ran out: wait for it to reset instead of failing.
+      const until = blocked?.resetsAt ? Date.parse(blocked.resetsAt) : NaN;
+      if (blocked && !canceled && Number.isFinite(until)) throw new QuotaWait(until, blocked.name);
+      throw e;
+    }
   },
 };
 
@@ -95,7 +118,9 @@ if (process.env.CEREBRO_WORKER === '1' && process.send) {
       if (!handler) throw new Error(`unknown job type: ${msg.job.type}`);
       send({ kind: 'done', result: await handler(msg.job.payload, msg.job.checkpoint) });
     } catch (e) {
-      send({ kind: canceled ? 'canceled' : 'error', error: String((e as Error).message ?? e) });
+      if (e instanceof QuotaWait) send({ kind: 'wait', until: e.until, error: e.message });
+      else
+        send({ kind: canceled ? 'canceled' : 'error', error: String((e as Error).message ?? e) });
     }
     process.disconnect?.();
   });

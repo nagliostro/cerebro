@@ -141,6 +141,50 @@ describe('dominus core', () => {
     expect((await finished(id)).status).toBe('canceled');
   });
 
+  it('routes "auto" to a ready connection and records why', async () => {
+    const choice = await call('POST', '/route', { mode: 'text', kind: 'chat' });
+    expect(choice).toMatchObject({ ok: true, provider: 'simulated', role: 'balanced' });
+    const done = await finished(
+      await enqueue({
+        type: 'ask',
+        payload: { provider: 'auto', role: 'cheap', mode: 'text', kind: 'chat', prompt: 'oi' },
+      }),
+    );
+    expect(done.payload).toMatchObject({
+      provider: 'simulated',
+      role: 'balanced',
+      route: ['local', 'default-role'],
+    });
+    expect(done.status).toBe('done');
+  });
+
+  it('waits for the quota to reset instead of failing, then finishes', async () => {
+    const until = Date.now() + 1500;
+    const id = await enqueue({
+      type: 'ask',
+      payload: {
+        provider: 'simulated',
+        role: 'cheap',
+        mode: 'text',
+        prompt: `[quota-out:${until}] hello`,
+      },
+    });
+    const waiting = await waitFor(async () => {
+      const j = await job(id);
+      return j.status === 'queued' && j.not_before ? j : undefined;
+    });
+    expect(waiting.not_before).toBe(until);
+    const done = await finished(id);
+    expect(done.status).toBe('done');
+    expect(Date.now()).toBeGreaterThanOrEqual(until);
+    expect(done.attempts).toBe(1); // waiting is not a failed attempt
+  });
+
+  it('the Guard answers from history, without calling an AI', async () => {
+    const verdict = await call('POST', '/guard', { provider: 'simulated', kind: 'build' });
+    expect(verdict).toMatchObject({ costUsd: null, verdict: 'unknown' });
+  });
+
   it('uses less than 150 MB when idle', async () => {
     await waitFor(async () => (await call<{ running: number }>('GET', '/stats')).running === 0);
     const { rssMb } = await call<{ rssMb: number }>('GET', '/stats');

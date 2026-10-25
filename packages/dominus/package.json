@@ -6,6 +6,7 @@
   "exports": {
     "./client": "./src/client.ts",
     "./data-dir": "./src/data-dir.ts",
+    "./quota": "./src/quota/status.ts",
     "./types": "./src/providers/types.ts",
     "./vault": "./src/vault.ts"
   },

@@ -28,7 +28,9 @@ function readConnections(file: string): ApiConnection[] {
       typeof c.name === 'string' &&
       typeof c.baseUrl === 'string' &&
       /^https?:\/\//.test(c.baseUrl) &&
-      MODEL_ROLES.every((r) => typeof c.models?.[r] === 'string'),
+      MODEL_ROLES.every((r) => typeof c.models?.[r] === 'string') &&
+      (c.monthlyCapUsd === undefined ||
+        (typeof c.monthlyCapUsd === 'number' && c.monthlyCapUsd > 0)),
   );
 }
 

@@ -20,6 +20,9 @@ const messages = {
       unreachable: (name: string) => `${name} não respondeu`,
     },
     coreDown: 'O Dominus não respondeu; reinicie o Cerebro',
+    window: { session: 'sessão', day: 'dia', week: 'semana', month: 'mês', balance: 'saldo' },
+    pace: (pct: string) => `ritmo ${pct}`,
+    stale: 'leitura antiga',
     locked: 'Para entrar, abra o link que apareceu no terminal onde o Cerebro foi iniciado.',
   },
   en: {
@@ -38,6 +41,9 @@ const messages = {
       unreachable: (name: string) => `${name} did not answer`,
     },
     coreDown: 'The Dominus did not answer; restart the Cerebro',
+    window: { session: 'session', day: 'day', week: 'week', month: 'month', balance: 'balance' },
+    pace: (pct: string) => `pace ${pct}`,
+    stale: 'old reading',
     locked: 'To enter, open the link shown in the terminal where the Cerebro was started.',
   },
 } satisfies Record<Locale, Record<string, unknown>>;
