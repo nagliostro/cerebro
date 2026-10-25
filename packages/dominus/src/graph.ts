@@ -101,10 +101,22 @@ export class Graph {
     this.db.close();
   }
 
-  private exists(id: string) {
+  exists(id: string) {
     return (
       id === DOMINUS_ID ||
       !!this.db.prepare(`SELECT 1 FROM neurons WHERE id = ? AND archived_at IS NULL`).get(id)
+    );
+  }
+
+  /** One neuron, as the screen of its application shows it; null when it does not exist. */
+  neuron(id: string): Omit<Neuron, 'weight'> | null {
+    return (
+      (this.db
+        .prepare(
+          `SELECT id, name, color, role, created_at AS createdAt FROM neurons
+           WHERE id = ? AND archived_at IS NULL`,
+        )
+        .get(id) as Omit<Neuron, 'weight'> | undefined) ?? null
     );
   }
 

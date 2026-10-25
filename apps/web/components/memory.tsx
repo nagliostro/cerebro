@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -25,8 +26,6 @@ export type MemoryNeuron = {
   strength: number;
   /** Shown after the name on hover, e.g. "peso 3,1". */
   detail: string | null;
-  /** What touching it shows, already in the owner's language. */
-  lines: string[];
 };
 
 type Props = {
@@ -56,20 +55,17 @@ function load(): { places: Record<string, Vec3>; turn: Turn } | null {
  * The Memória: the Dominus at the center and the neurons in 3D around it, all linked (a complete
  * graph) by dashed synapses that brighten with conversations. Dragging the sky turns it; dragging
  * a neuron moves only that one; the wheel (or PageUp/PageDown) brings it closer or farther; a
- * double click on the sky goes back to the first view. Touching the Dominus or a neuron shows
- * what is true about it; while one speaks, the rest steps back.
+ * double click on the sky goes back to the first view. Touching a neuron opens its application;
+ * touching the Dominus shows what is true right now, and while it speaks the rest steps back.
  */
 export function Memory({ dominusLabel, dominusLines, neurons, synapses, links }: Props) {
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
   const sky = useRef<HTMLElement>(null);
   const svg = useRef<SVGSVGElement>(null);
-  const status = useRef<HTMLDivElement>(null);
-  const dots = useRef(new Map<string, HTMLButtonElement>());
+  const dots = useRef(new Map<string, HTMLAnchorElement>());
   const places = useRef(new Map<string, Vec3>());
   const turn = useRef<Turn>(FIRST_TURN);
   const moved = useRef(false);
-  // Read by draw(), which runs outside React's renders (gestures); kept current by effects.
-  const openRef = useRef(open);
 
   const activeLinks = useMemo(() => new Set(links), [links]);
 
@@ -103,16 +99,6 @@ export function Memory({ dominusLabel, dominusLines, neurons, synapses, links }:
       }),
     );
     if (svg.current) svg.current.innerHTML = lines;
-
-    // The open neuron's status follows it, kept inside the screen.
-    const box = status.current;
-    const current = openRef.current;
-    const target = current && current !== DOMINUS ? at.get(current) : null;
-    if (box && target) {
-      const half = box.offsetWidth / 2;
-      const x = Math.min(Math.max(target.x, half + 16), window.innerWidth - half - 16);
-      box.style.transform = `translate(${x - half}px, ${target.y + 26}px)`;
-    }
   }, [neurons, synapses, activeLinks]);
 
   const save = useCallback(() => {
@@ -136,12 +122,6 @@ export function Memory({ dominusLabel, dominusLines, neurons, synapses, links }:
     if (saved?.turn) turn.current = saved.turn;
     draw();
   }, [neurons, draw]);
-
-  // The status box exists only after the render that opens it: place it then.
-  useLayoutEffect(() => {
-    openRef.current = open;
-    draw();
-  }, [open, draw]);
 
   useEffect(() => {
     const onResize = () => draw();
@@ -227,7 +207,7 @@ export function Memory({ dominusLabel, dominusLines, neurons, synapses, links }:
   // Keyboard: arrows turn the sky; PageUp/PageDown move the focused neuron; Esc closes.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') return setOpen(null);
+      if (e.key === 'Escape') return setOpen(false);
       const arrows: Record<string, [number, number]> = {
         ArrowLeft: [-0.12, 0],
         ArrowRight: [0.12, 0],
@@ -250,9 +230,7 @@ export function Memory({ dominusLabel, dominusLines, neurons, synapses, links }:
     return () => window.removeEventListener('keydown', onKey);
   }, [draw, save]);
 
-  const toggle = (id: string) => !moved.current && setOpen((v) => (v === id ? null : id));
-  const speaking = open !== null;
-  const openNeuron = neurons.find((n) => n.id === open);
+  const speaking = open;
 
   return (
     <main
@@ -267,19 +245,19 @@ export function Memory({ dominusLabel, dominusLines, neurons, synapses, links }:
       />
 
       {neurons.map((n) => (
-        <button
+        <Link
           key={n.id}
+          href={`/neuron/${n.id}`}
+          draggable={false}
           ref={(el) => {
             if (el) dots.current.set(n.id, el);
             else dots.current.delete(n.id);
           }}
-          type="button"
           data-neuron={n.id}
           aria-label={n.detail ? `${n.name}, ${n.detail}` : n.name}
-          aria-expanded={open === n.id}
-          aria-controls="neuron-status"
-          onClick={() => toggle(n.id)}
-          className={`group invisible absolute top-0 left-0 -mt-[22px] -ml-[22px] grid size-11 cursor-grab place-items-center rounded-full transition-[filter] duration-300 outline-none ${speaking && open !== n.id ? '[filter:opacity(0.25)]' : ''}`}
+          // A drag is not a touch: it moved the neuron, it does not open it.
+          onClick={(e) => moved.current && e.preventDefault()}
+          className={`group invisible absolute top-0 left-0 -mt-[22px] -ml-[22px] grid size-11 cursor-grab place-items-center rounded-full transition-[filter] duration-300 outline-none ${speaking ? '[filter:opacity(0.25)]' : ''}`}
           style={
             {
               '--dot': n.color,
@@ -311,7 +289,7 @@ export function Memory({ dominusLabel, dominusLines, neurons, synapses, links }:
             {n.name}
             {n.detail && <span className="text-white/60"> · {n.detail}</span>}
           </span>
-        </button>
+        </Link>
       ))}
 
       {/* The Dominus, always above what is behind it. */}
@@ -319,14 +297,14 @@ export function Memory({ dominusLabel, dominusLines, neurons, synapses, links }:
         <NeuronDot
           color={DOMINUS_COLOR}
           label={dominusLabel}
-          expanded={open === DOMINUS}
+          expanded={open}
           controls="dominus-status"
-          onClick={() => toggle(DOMINUS)}
+          onClick={() => !moved.current && setOpen((v) => !v)}
         />
         <div
           id="dominus-status"
           role="status"
-          hidden={open !== DOMINUS}
+          hidden={!open}
           className="absolute top-full left-1/2 mt-3 w-[min(90vw,32rem)] -translate-x-1/2 text-center break-words"
         >
           {dominusLines.map((line) => (
@@ -335,20 +313,6 @@ export function Memory({ dominusLabel, dominusLines, neurons, synapses, links }:
             </p>
           ))}
         </div>
-      </div>
-
-      <div
-        ref={status}
-        id="neuron-status"
-        role="status"
-        hidden={!openNeuron}
-        className="pointer-events-none absolute top-0 left-0 z-[60] w-[min(90vw,32rem)] text-center break-words"
-      >
-        {openNeuron?.lines.map((line, i) => (
-          <p key={line} className={i === 0 ? 'text-(--cb-highlight)' : undefined}>
-            {line}
-          </p>
-        ))}
       </div>
     </main>
   );

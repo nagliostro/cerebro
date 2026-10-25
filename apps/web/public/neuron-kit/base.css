@@ -1,0 +1,191 @@
+/*
+ * The neuron kit: the Cerebro's look for every neuron's application. One text style (Geist Mono,
+ * 12px, white at 55%), pure white for highlights, the neuron's own color (--cb-cor) only for
+ * small details. Transparent background: the application sits on the Cerebro's sky.
+ */
+@font-face {
+  font-family: 'Geist Mono';
+  font-weight: 500;
+  font-display: swap;
+  src: url('geist-mono-500.woff2') format('woff2');
+}
+:root {
+  --cb-cor: oklch(0.78 0.11 160);
+  color-scheme: dark;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: transparent;
+  font:
+    500 12px/1.6 'Geist Mono',
+    ui-monospace,
+    monospace;
+  color: oklch(1 0 0 / 55%);
+  -webkit-font-smoothing: antialiased;
+}
+main {
+  width: min(100% - 32px, 760px);
+  margin: 24px auto 96px;
+}
+:focus-visible {
+  outline: 1px solid #fff;
+  outline-offset: 4px;
+}
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+  font: inherit;
+}
+.cb-forte {
+  color: #fff;
+}
+.cb-ponto {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cb-cor);
+  box-shadow: 0 0 8px var(--cb-cor);
+}
+.cb-linha {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+/* Main action: white pill. Secondary: pill at 8%. 44px to touch. */
+.cb-botao,
+.cb-botao-sec {
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.cb-botao {
+  background: #fff;
+  color: #000;
+}
+.cb-botao-sec {
+  background: oklch(1 0 0 / 8%);
+}
+.cb-botao-sec:hover {
+  color: #fff;
+}
+
+/* Tabs in a pill. */
+.cb-abas {
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 999px;
+  background: oklch(1 0 0 / 6%);
+}
+.cb-abas button {
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+}
+.cb-abas button[aria-selected='true'] {
+  background: #fff;
+  color: #000;
+}
+
+/* Lists with a thin line between items. */
+.cb-lista {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+}
+.cb-lista > li {
+  display: flex;
+  gap: 16px;
+  padding: 14px 0;
+  box-shadow: 0 1px 0 oklch(1 0 0 / 6%);
+}
+
+/* A thin bar, in the neuron's color. */
+.cb-barra {
+  height: 2px;
+  border-radius: 2px;
+  background: oklch(1 0 0 / 8%);
+  overflow: hidden;
+}
+.cb-barra > i {
+  display: block;
+  height: 100%;
+  background: var(--cb-cor);
+}
+
+/* Field: 52px, 10px corners, the name inside (floating label, never a placeholder alone). */
+.cb-campo {
+  position: relative;
+}
+.cb-campo input,
+.cb-campo select,
+.cb-campo textarea {
+  width: 100%;
+  min-height: 52px;
+  padding: 22px 14px 6px;
+  border-radius: 10px;
+  border: 0;
+  background: oklch(1 0 0 / 6%);
+  box-shadow: inset 0 0 0 1px oklch(1 0 0 / 10%);
+  font: inherit;
+  color: #fff;
+  outline: none;
+}
+.cb-campo :is(input, select, textarea):focus {
+  box-shadow: inset 0 0 0 1px #fff;
+}
+.cb-campo label {
+  position: absolute;
+  left: 14px;
+  top: 17px;
+  pointer-events: none;
+  transition:
+    top 0.15s,
+    font-size 0.15s;
+}
+.cb-campo :is(input, textarea):is(:focus, :not(:placeholder-shown)) + label,
+.cb-campo select + label {
+  top: 7px;
+  font-size: 10px;
+}
+
+dialog {
+  border: 0;
+  border-radius: 10px;
+  padding: 16px;
+  color: inherit;
+  background: oklch(0.13 0.006 265 / 0.92);
+  box-shadow: inset 0 0 0 1px oklch(1 0 0 / 12%);
+  backdrop-filter: blur(14px);
+}
+dialog::backdrop {
+  background: oklch(0 0 0 / 40%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

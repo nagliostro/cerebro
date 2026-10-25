@@ -8,6 +8,7 @@ import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 
 import { clockState, nowMs, setOffset, syncClock } from './clock.ts';
+import { Contracts, ContractError } from './contract.ts';
 import { Graph, GraphError } from './graph.ts';
 import { corePaths } from './paths.ts';
 import { loadProviders } from './providers/index.ts';
@@ -51,6 +52,7 @@ const token = Buffer.from(loadToken());
 
 const queue = new Queue(paths.db);
 const graph = new Graph(paths.db);
+const contracts = new Contracts(paths.db);
 const bus = new EventEmitter();
 bus.setMaxListeners(50);
 const lag = monitorEventLoopDelay({ resolution: 10 });
@@ -391,6 +393,44 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     emit('graph.changed', {});
     return json(201, result);
   }
+  // A neuron, its data, its contract and who may ask it what. The screens reach these only for
+  // the neuron whose page is open, and only the owner's own page changes permissions.
+  const neuronMatch = url.pathname.match(/^\/neurons\/([a-z0-9-]{1,40})(?:\/(\w+))?$/);
+  if (neuronMatch) {
+    const [, id, what] = neuronMatch as unknown as [string, string, string | undefined];
+    const neuron = graph.neuron(id);
+    if (!neuron) return json(404, { error: 'unknown neuron' });
+    if (req.method === 'GET' && !what) return json(200, neuron);
+    if (req.method === 'GET' && what === 'contract') return json(200, contracts.contract(id));
+    if (req.method === 'GET' && what === 'permissions') return json(200, contracts.permissions(id));
+    if (req.method === 'POST') {
+      const b = (await readBody(req)) as Record<string, unknown>;
+      if (what === 'data') return json(200, contracts.run(id, b.collection, b.op, b.input));
+      if (what === 'call') {
+        // One neuron asks another: only what the owner allowed; it counts as a conversation.
+        const target = typeof b.target === 'string' ? b.target : '';
+        const [collection, op] = typeof b.operation === 'string' ? b.operation.split('.') : [];
+        if (!graph.neuron(target)) return json(404, { error: 'unknown neuron' });
+        if (!collection || !op) throw new BadRequest('operation must be collection.op');
+        if (!contracts.allowed(id, target, collection, op as never))
+          return json(403, { error: 'not allowed' });
+        const result = contracts.run(target, collection, op, b.input);
+        graph.recordConversation(id, target);
+        emit('graph.changed', {});
+        return json(200, result);
+      }
+      if (what === 'permissions') {
+        if (b.revokeAll === true) contracts.revokeAll(id);
+        else {
+          if (typeof b.caller !== 'string' || !graph.neuron(b.caller))
+            throw new BadRequest('unknown caller');
+          contracts.setPermission(id, b.caller, b.collection, b.grants);
+        }
+        return json(200, contracts.permissions(id));
+      }
+    }
+    return json(404, { error: 'not found' });
+  }
   if (req.method === 'GET' && url.pathname === '/events') {
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
     const listener = (e: object) => res.write(`data: ${JSON.stringify(e)}\n\n`);
@@ -403,7 +443,7 @@ async function route(req: IncomingMessage, res: ServerResponse) {
 
 const server = createServer((req, res) => {
   route(req, res).catch((e) => {
-    const bad = e instanceof BadRequest || e instanceof GraphError;
+    const bad = e instanceof BadRequest || e instanceof GraphError || e instanceof ContractError;
     if (!bad) console.error('dominus core:', e);
     if (!res.headersSent) res.writeHead(bad ? 400 : 500, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ error: bad ? e.message : 'internal error' }));
@@ -415,6 +455,7 @@ function shutdown() {
   server.close();
   queue.close();
   graph.close();
+  contracts.close();
   process.exit(0);
 }
 process.on('SIGINT', shutdown);

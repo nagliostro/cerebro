@@ -24,13 +24,26 @@ const messages = {
     pace: (pct: string) => `ritmo ${pct}`,
     stale: 'leitura antiga',
     weight: (w: string) => `peso ${w}`,
-    role: { life: 'Neurônio de vida', craft: 'Neurônio de ofício: sabe construir' },
-    noTalks: 'Ainda sem conversas com os outros',
     neuronCount: (all: number, craft: number) =>
       all === 0
         ? 'Nenhum neurônio ainda'
         : `${all} ${all === 1 ? 'neurônio' : 'neurônios'}${craft ? ` · ${craft} de ofício` : ''}`,
     number: (x: number) => x.toLocaleString('pt-BR'),
+    menu: { nav: 'Principal', open: 'Abrir menu', close: 'Fechar menu', memory: 'Memória' },
+    appTitle: (name: string) => `Aplicação ${name}`,
+    appMissing: (name: string) => `A aplicação de ${name} ainda não foi construída.`,
+    permissions: (name: string) => ({
+      button: `Permissões: quem pode pedir coisas a ${name}`,
+      title: `Quem pode pedir coisas a ${name}`,
+      note: 'Só você muda isto. Nada usa IA: cada pedido é conferido e gravado direto.',
+      grants: { view: 'Visualizar', create: 'Incluir', update: 'Alterar', delete: 'Remover' },
+      allowAnother: 'Liberar outro neurônio',
+      choose: 'Qual neurônio?',
+      revokeAll: 'Revogar tudo',
+      nobody: `Nenhum neurônio pode pedir coisas a ${name} ainda.`,
+      noData: `${name} ainda não tem dados para oferecer.`,
+      failed: 'Não deu para salvar; tente de novo.',
+    }),
     locked: 'Para entrar, abra o link que apareceu no terminal onde o Cerebro foi iniciado.',
   },
   en: {
@@ -53,13 +66,26 @@ const messages = {
     pace: (pct: string) => `pace ${pct}`,
     stale: 'old reading',
     weight: (w: string) => `weight ${w}`,
-    role: { life: 'Life neuron', craft: 'Craft neuron: knows how to build' },
-    noTalks: 'No conversations with the others yet',
     neuronCount: (all: number, craft: number) =>
       all === 0
         ? 'No neurons yet'
         : `${all} ${all === 1 ? 'neuron' : 'neurons'}${craft ? ` · ${craft} craft` : ''}`,
     number: (x: number) => x.toLocaleString('en'),
+    menu: { nav: 'Main', open: 'Open menu', close: 'Close menu', memory: 'Memória' },
+    appTitle: (name: string) => `${name} application`,
+    appMissing: (name: string) => `The ${name} application has not been built yet.`,
+    permissions: (name: string) => ({
+      button: `Permissions: who may ask ${name} for things`,
+      title: `Who may ask ${name} for things`,
+      note: 'Only you change this. No AI involved: each request is checked and saved directly.',
+      grants: { view: 'View', create: 'Add', update: 'Change', delete: 'Remove' },
+      allowAnother: 'Allow another neuron',
+      choose: 'Which neuron?',
+      revokeAll: 'Revoke all',
+      nobody: `No neuron may ask ${name} for things yet.`,
+      noData: `${name} has no data to offer yet.`,
+      failed: 'Could not save; try again.',
+    }),
     locked: 'To enter, open the link shown in the terminal where the Cerebro was started.',
   },
 } satisfies Record<Locale, Record<string, unknown>>;

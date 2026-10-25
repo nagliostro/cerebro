@@ -205,6 +205,39 @@ describe('dominus core', () => {
     );
   });
 
+  it('neurons talk only through the contract, as the owner allows, and it counts as a conversation', async () => {
+    await call('POST', '/graph/neurons', { name: 'Agenda' });
+    await call('POST', '/neurons/financas/data', {
+      collection: 'gastos',
+      op: 'create',
+      input: { data: { desc: 'Mercado', valor: 312.4 } },
+    });
+    const contract = await call<{ collections: { name: string }[] }>(
+      'GET',
+      '/neurons/financas/contract',
+    );
+    expect(contract.collections.map((c) => c.name)).toEqual(['gastos']);
+
+    const ask = { target: 'financas', operation: 'gastos.list' };
+    await expect(call('POST', '/neurons/agenda/call', ask)).rejects.toThrow(/403/);
+    await call('POST', '/neurons/financas/permissions', {
+      caller: 'agenda',
+      collection: 'gastos',
+      grants: ['view'],
+    });
+    expect(await call('POST', '/neurons/agenda/call', ask)).toMatchObject([
+      { data: { desc: 'Mercado' } },
+    ]);
+    await expect(
+      call('POST', '/neurons/agenda/call', { target: 'financas', operation: 'gastos.delete' }),
+    ).rejects.toThrow(/403/);
+    const graph = await call<{ synapses: { a: string; b: string }[] }>('GET', '/graph');
+    expect(graph.synapses).toContainEqual(expect.objectContaining({ a: 'agenda', b: 'financas' }));
+    await call('POST', '/neurons/financas/permissions', { revokeAll: true });
+    await expect(call('POST', '/neurons/agenda/call', ask)).rejects.toThrow(/403/);
+    await expect(call('GET', '/neurons/ghost/contract')).rejects.toThrow(/404/);
+  });
+
   it('uses less than 150 MB when idle', async () => {
     await waitFor(async () => (await call<{ running: number }>('GET', '/stats')).running === 0);
     const { rssMb } = await call<{ rssMb: number }>('GET', '/stats');

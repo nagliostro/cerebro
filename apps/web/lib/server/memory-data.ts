@@ -33,7 +33,6 @@ export async function memoryData(m: Messages) {
       role: n.role,
       strength: heaviest > 0 ? n.weight / heaviest : 0,
       detail,
-      lines: [n.name, m.role[n.role], detail ?? m.noTalks],
     };
   });
   return {

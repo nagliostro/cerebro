@@ -18,8 +18,9 @@ test.describe('memória', () => {
 
     const dominus = page.getByRole('button', { name: 'Dominus' });
     await expect(dominus).toBeVisible();
-    // The Dominus and the four neurons, nothing else to touch.
-    await expect(page.getByRole('button')).toHaveCount(5);
+    // The Dominus, and the four neurons that open their applications; nothing else to touch.
+    await expect(page.getByRole('button')).toHaveCount(1);
+    await expect(page.getByRole('link')).toHaveCount(4);
 
     const status = page.locator('#dominus-status');
     await expect(status).toBeHidden();

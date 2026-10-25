@@ -53,6 +53,10 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
+  // A neuron's application: no cookie reaches it (sandboxed, opaque origin); the route checks
+  // its signed link.
+  if (url.pathname.startsWith('/apps/') && request.method === 'GET') return NextResponse.next();
+
   const signedIn = await isValidSession(request.cookies.get(SESSION_COOKIE)?.value);
   if (signedIn) {
     return url.pathname === LOCKED ? NextResponse.redirect(here('/')) : NextResponse.next();
@@ -68,6 +72,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Static files are the same open-source code for everyone; they need no session.
-  matcher: ['/((?!_next/static|_next/image|icon.svg|favicon.ico).*)'],
+  // Static files are the same open-source code for everyone, and so is the neuron kit; they need
+  // no session.
+  matcher: ['/((?!_next/static|_next/image|icon.svg|favicon.ico|neuron-kit/).*)'],
 };

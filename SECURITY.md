@@ -22,6 +22,10 @@ Please do not open a public issue. Use GitHub's private vulnerability reporting
 - Requests whose Host is not this computer are refused (DNS rebinding), and so is any request
   that changes something without an Origin of the Cerebro itself (CSRF).
 - Your data stays in your computer's data folder, never in the program folder or in git.
+- Each neuron's application runs isolated: a sandboxed frame with an opaque origin and a strict
+  Content-Security-Policy (no cookies, no storage, no network), served by a short-lived signed link.
+  It talks to the Cerebro only through a message bridge that reaches its own data and, through the
+  contract, only what you allowed other neurons to share. Only you change permissions.
 - API keys go to the system's credential store (Windows Credential Manager, macOS Keychain,
   Secret Service on Linux), never to the browser or to plain files. Without a store, nothing is
   saved.
