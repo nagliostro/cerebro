@@ -1,5 +1,13 @@
 import type { Vault } from '../vault.ts';
-import type { AiProvider, AskResult, HealthCheck, ModelRole } from './types.ts';
+import { FILE_TOOL_SPECS, runFileTool } from './file-tools.ts';
+import type {
+  AiProvider,
+  AskEvent,
+  AskRequest,
+  AskResult,
+  HealthCheck,
+  ModelRole,
+} from './types.ts';
 
 // API adapter for every provider that speaks the OpenAI Chat Completions format: OpenAI,
 // Anthropic, Google Gemini, xAI, OpenRouter, Groq and local Ollama, among others. One adapter,
@@ -22,6 +30,15 @@ export type ApiConnection = {
 };
 
 type Usage = { prompt_tokens?: number; completion_tokens?: number; cost?: number };
+type Message = {
+  role: string;
+  content: string | null;
+  tool_calls?: { id: string; function: { name: string; arguments: string } }[];
+  tool_call_id?: string;
+};
+
+/** Turns of an agent before it must stop: a build writes a handful of files, not hundreds. */
+const MAX_TURNS = 60;
 
 export function openAiCompatible(conn: ApiConnection, vault: Vault): AiProvider {
   const base = conn.baseUrl.replace(/\/+$/, '');
@@ -36,14 +53,80 @@ export function openAiCompatible(conn: ApiConnection, vault: Vault): AiProvider 
     return h;
   }
 
+  /**
+   * Agent mode: the model asks for file tools, the Cerebro runs them inside cwd and answers, until
+   * the model gives its final text. Only files: an API model never runs a command here.
+   */
+  async function agent(req: AskRequest, onEvent?: (e: AskEvent) => void): Promise<AskResult> {
+    if (req.access !== 'files' || !req.cwd)
+      throw new Error(`${conn.name} runs agents only with files, in a folder of their own`);
+    const started = performance.now();
+    const messages: Message[] = [
+      ...(req.system ? [{ role: 'system', content: req.system }] : []),
+      { role: 'user', content: req.prompt },
+    ];
+    let model = conn.models[req.role];
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let cost: number | null = null;
+    for (let turn = 0; turn < MAX_TURNS; turn++) {
+      const res = await fetch(`${base}/chat/completions`, {
+        method: 'POST',
+        headers: await headers(),
+        signal: req.signal,
+        body: JSON.stringify({ model: conn.models[req.role], messages, tools: FILE_TOOL_SPECS }),
+      });
+      if (!res.ok)
+        throw new Error(`${conn.name} answered ${res.status}: ${(await res.text()).slice(0, 300)}`);
+      const data = (await res.json()) as {
+        model?: string;
+        usage?: Usage;
+        choices?: { message?: Message }[];
+      };
+      if (data.model) model = data.model;
+      inputTokens += data.usage?.prompt_tokens ?? 0;
+      outputTokens += data.usage?.completion_tokens ?? 0;
+      if (typeof data.usage?.cost === 'number') cost = (cost ?? 0) + data.usage.cost;
+      const message = data.choices?.[0]?.message;
+      if (!message) throw new Error(`${conn.name} gave no answer`);
+      if (message.content) onEvent?.({ type: 'text', text: message.content });
+      messages.push({
+        role: 'assistant',
+        content: message.content ?? null,
+        tool_calls: message.tool_calls,
+      });
+      if (!message.tool_calls?.length)
+        return {
+          text: message.content ?? '',
+          model,
+          inputTokens,
+          outputTokens,
+          costUsd: cost,
+          durationMs: Math.round(performance.now() - started),
+        };
+      for (const call of message.tool_calls) {
+        let args: Record<string, unknown> = {};
+        try {
+          args = JSON.parse(call.function.arguments || '{}');
+        } catch {
+          // A malformed call gets an error answer below, like any other.
+        }
+        const r = await runFileTool(req.cwd, call.function.name, args);
+        onEvent?.({ type: 'tool', action: r.action, target: r.target });
+        messages.push({ role: 'tool', tool_call_id: call.id, content: r.output });
+      }
+    }
+    throw new Error(`${conn.name} did not finish in ${MAX_TURNS} turns`);
+  }
+
   return {
     id: conn.id,
     name: conn.name,
     monthlyCapUsd: conn.monthlyCapUsd,
     capabilities: {
       billing: conn.billing ?? 'api',
-      // Agent mode needs tools run by the Cerebro itself; it comes with neuron building.
-      modes: ['text'],
+      // Agent mode with files only: the Cerebro itself runs the file tools for the model.
+      modes: ['text', 'agent'],
       sessions: false,
       quotaSource: 'none',
       // The month window, when there is a cap, is measured by the Dominus itself.
@@ -68,7 +151,7 @@ export function openAiCompatible(conn: ApiConnection, vault: Vault): AiProvider 
     },
 
     async ask(req, onEvent): Promise<AskResult> {
-      if (req.mode !== 'text') throw new Error(`${conn.name} runs only in text mode`);
+      if (req.mode === 'agent') return agent(req, onEvent);
       const started = performance.now();
       const messages = [
         ...(req.system ? [{ role: 'system', content: req.system }] : []),

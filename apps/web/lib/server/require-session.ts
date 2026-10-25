@@ -24,3 +24,5 @@ export async function fromCore(run: () => Promise<unknown>): Promise<Response> {
 }
 
 export const validNeuronId = (id: string) => /^[a-z0-9-]{1,40}$/.test(id);
+
+export const validPlanId = (id: string) => /^[\w-]{1,40}$/.test(id);

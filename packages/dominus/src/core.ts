@@ -7,6 +7,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 
+import { Builder, BuildError } from './builder/builder.ts';
+import { Plans } from './builder/plan.ts';
 import { clockState, nowMs, setOffset, syncClock } from './clock.ts';
 import { Contracts, ContractError } from './contract.ts';
 import { Graph, GraphError } from './graph.ts';
@@ -53,6 +55,7 @@ const token = Buffer.from(loadToken());
 const queue = new Queue(paths.db);
 const graph = new Graph(paths.db);
 const contracts = new Contracts(paths.db);
+const plans = new Plans(paths.db);
 const bus = new EventEmitter();
 bus.setMaxListeners(50);
 const lag = monitorEventLoopDelay({ resolution: 10 });
@@ -136,13 +139,16 @@ function startWorker(job: JobRow) {
     else if (msg.kind === 'quota') {
       queue.saveQuota(msg.provider, msg.windows);
       emit('quota.updated', { provider: msg.provider });
-    } else if (msg.kind === 'event') emit('job.progress', { id: job.id, ...msg.event });
-    else if (msg.kind === 'done') settle(r, 'done', { result: msg.result });
+    } else if (msg.kind === 'event') {
+      emit('job.progress', { id: job.id, ...msg.event });
+      builder.progress(job.id, msg.event as never);
+    } else if (msg.kind === 'done') settle(r, 'done', { result: msg.result });
     else if (msg.kind === 'wait') {
       // Not a failure: back to the queue, keeping the checkpoint, until the window resets.
       r.settled = true;
       queue.defer(job.id, msg.until, msg.error);
       emit('job.waiting', { id: job.id, until: msg.until, reason: msg.error });
+      builder.waiting(job.id, msg.until);
     } else if (msg.kind === 'canceled') settle(r, 'canceled', { error: 'canceled by the owner' });
     else if (msg.kind === 'error') settle(r, 'failed', { error: msg.error });
   });
@@ -154,7 +160,9 @@ function startWorker(job: JobRow) {
     running.delete(job.id);
     if (!r.settled) {
       queue.retryOrFail(job.id, `worker exited (${signal ?? code})`);
-      emit('job.crashed', { id: job.id, code, signal, status: queue.get(job.id)?.status });
+      const status = queue.get(job.id)?.status;
+      emit('job.crashed', { id: job.id, code, signal, status });
+      if (status === 'failed') afterJob(job.id, 'failed', { error: 'the worker kept failing' });
     }
     dispatch();
   });
@@ -169,6 +177,16 @@ function settle(
   r.settled = true;
   queue.finish(r.job.id, status, data);
   emit(`job.${status}`, { id: r.job.id, ...data });
+  afterJob(r.job.id, status, data);
+}
+
+/** A job ended: whatever waits for it (a plan) moves on. */
+function afterJob(
+  id: string,
+  status: 'done' | 'failed' | 'canceled',
+  data: { result?: unknown; error?: string },
+) {
+  builder.settled(id, status, data).catch((e) => console.error('dominus builder:', e));
 }
 
 /** Hung or over time: no retry, a stuck job would only get stuck again. */
@@ -180,6 +198,7 @@ function kill(r: Running, reason: string) {
 function cancel(id: string) {
   if (queue.cancelQueued(id)) {
     emit('job.canceled', { id });
+    afterJob(id, 'canceled', {});
     return true;
   }
   const r = running.get(id);
@@ -268,6 +287,33 @@ async function resolveAuto(payload: AskPayload): Promise<AskPayload> {
 }
 
 class BadRequest extends Error {}
+
+const builder = new Builder({
+  dataDir: paths.dir,
+  plans,
+  queue,
+  graph,
+  contracts,
+  async enqueueAsk(payload, opts) {
+    const job = validJob({
+      type: 'ask',
+      payload: await resolveAuto(payload),
+      maxMs: opts.maxMs,
+      maxAttempts: opts.maxAttempts,
+    });
+    const id = queue.enqueue(job);
+    emit('job.queued', { id });
+    dispatch();
+    return id;
+  },
+  cancelJob: (id) => cancel(id),
+  async routeFor(mode, kind) {
+    const r = pickRoute({ mode, kind }, await candidates(kind));
+    const p = r.ok ? loadProviders(paths).get(r.provider) : undefined;
+    return { provider: p?.id ?? null, windows: p ? quota(p) : [] };
+  },
+  emit,
+});
 
 /** Checks a new job before it enters the queue, so the queue holds only runnable work. */
 function validJob(body: unknown): NewJob {
@@ -431,6 +477,32 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     }
     return json(404, { error: 'not found' });
   }
+  // Building neurons: a request becomes a plan, an accepted plan becomes a neuron.
+  if (req.method === 'POST' && url.pathname === '/plans') {
+    const b = (await readBody(req)) as Record<string, unknown>;
+    return json(201, { id: await builder.start(b) });
+  }
+  if (req.method === 'GET' && url.pathname === '/plans/current')
+    return json(200, builder.current(url.searchParams.get('target') || null));
+  const planMatch = url.pathname.match(
+    /^\/plans\/([\w-]{1,40})(?:\/(answer|accept|reject|cancel|undo))?$/,
+  );
+  if (planMatch) {
+    const [, id, action] = planMatch as unknown as [string, string, string | undefined];
+    if (req.method === 'GET' && !action) {
+      const plan = builder.get(id);
+      return plan ? json(200, plan) : json(404, { error: 'unknown plan' });
+    }
+    if (req.method === 'POST' && action) {
+      const b = (await readBody(req)) as Record<string, unknown>;
+      if (action === 'answer') await builder.answer(id, b);
+      else if (action === 'accept') await builder.accept(id);
+      else if (action === 'reject') builder.reject(id);
+      else if (action === 'undo') await builder.undo(id);
+      else builder.cancel(id);
+      return json(200, builder.get(id));
+    }
+  }
   if (req.method === 'GET' && url.pathname === '/events') {
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
     const listener = (e: object) => res.write(`data: ${JSON.stringify(e)}\n\n`);
@@ -443,7 +515,11 @@ async function route(req: IncomingMessage, res: ServerResponse) {
 
 const server = createServer((req, res) => {
   route(req, res).catch((e) => {
-    const bad = e instanceof BadRequest || e instanceof GraphError || e instanceof ContractError;
+    const bad =
+      e instanceof BadRequest ||
+      e instanceof GraphError ||
+      e instanceof ContractError ||
+      e instanceof BuildError;
     if (!bad) console.error('dominus core:', e);
     if (!res.headersSent) res.writeHead(bad ? 400 : 500, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ error: bad ? e.message : 'internal error' }));
@@ -456,6 +532,7 @@ function shutdown() {
   queue.close();
   graph.close();
   contracts.close();
+  plans.close();
   process.exit(0);
 }
 process.on('SIGINT', shutdown);
@@ -486,6 +563,7 @@ await clearStaleSocket();
 server.listen(paths.socket, () => {
   const recovered = queue.recover();
   console.log(`dominus core ${process.pid} ready, ${recovered} job(s) resumed`);
+  builder.reconcile().catch((e) => console.error('dominus builder:', e));
   dispatch();
   void sync();
 });

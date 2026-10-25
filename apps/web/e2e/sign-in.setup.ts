@@ -9,8 +9,8 @@ import { issueLaunchKey } from '../lib/server/session';
 import { E2E_DATA_DIR, SIGNED_IN } from '../playwright.config';
 
 // Before every screen test: a small graph in the Memória, made through the core's own API
-// (only once; the data folder lasts between runs), an application for Finanças (as the Builder
-// would write it, with the kit and the bridge), and a signed-in browser.
+// (only once per run: each run starts from an empty data folder), an application for Finanças (as
+// the Builder would write it, with the kit and the bridge), and a signed-in browser.
 
 const APP = `<!doctype html>
 <html lang="pt-BR">
@@ -18,12 +18,13 @@ const APP = `<!doctype html>
     <meta charset="utf-8" />
     <link rel="stylesheet" href="/neuron-kit/base.css" />
     <script src="/neuron-kit/cerebro.js"></script>
+    <script src="/neuron-kit/icons.js"></script>
   </head>
   <body>
     <main>
       <div class="cb-linha">
         <p class="cb-forte">Gastos</p>
-        <button class="cb-botao" id="novo">Novo gasto</button>
+        <button class="cb-botao" id="novo"><i data-icon="plus"></i>Novo gasto</button>
       </div>
       <form id="form" hidden>
         <div class="cb-campo"><input id="desc" placeholder=" " required /><label for="desc">Descrição</label></div>

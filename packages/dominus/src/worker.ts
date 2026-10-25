@@ -16,6 +16,8 @@ export type AskPayload = {
   system?: string;
   effort?: 'low' | 'medium' | 'high';
   cwd?: string;
+  /** Files only: the agent reads and writes inside cwd and nothing else (building a neuron). */
+  access?: 'files';
   sessionId?: string;
   /** The kind of task ("chat", "build"...), so the Router learns what works for each. */
   kind?: string;
@@ -31,7 +33,8 @@ export function isAskPayload(p: unknown): p is AskPayload {
     (a.mode === 'text' || a.mode === 'agent') &&
     typeof a.prompt === 'string' &&
     a.prompt.length > 0 &&
-    (a.kind === undefined || (typeof a.kind === 'string' && a.kind.length <= 40))
+    (a.kind === undefined || (typeof a.kind === 'string' && a.kind.length <= 40)) &&
+    (a.access === undefined || (a.access === 'files' && a.mode === 'agent' && !!a.cwd))
   );
 }
 

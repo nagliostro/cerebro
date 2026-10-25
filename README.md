@@ -6,10 +6,11 @@ O ajudante do seu cérebro: as áreas e os objetivos da sua vida, conectados. Ca
 **neurônio**, uma aplicação própria; o **Dominus**, no centro, conversa com você e com a IA que
 você já usa.
 
-> Em construção, por fases. Hoje (fase 6) há a Memória: o Dominus no centro e os neurônios em 3D
-> em volta, só para quem iniciou o Cerebro. Cada neurônio abre a sua aplicação, isolada, e os
-> neurônios conversam só pelo contrato, com a sua permissão. O núcleo já fala com a sua IA (Claude
-> Code, ou qualquer API no formato da OpenAI), mede a cota e guarda o grafo.
+> Em construção, por fases. Hoje (fase 7) há a Memória: o Dominus no centro e os neurônios em 3D
+> em volta, só para quem iniciou o Cerebro. Peça um neurônio ao Dominus: ele planeja (com o custo
+> antes), você aceita e ele constrói a aplicação, isolada. Os neurônios conversam só pelo contrato,
+> com a sua permissão. O núcleo fala com a sua IA (Claude Code, ou qualquer API no formato da
+> OpenAI), mede a cota e guarda o grafo.
 
 ## Instalar
 
@@ -48,11 +49,11 @@ Your brain's helper: the areas and goals of your life, connected. Each area beco
 **neuron**, an application of its own; the **Dominus**, at the center, talks to you and to the
 AI you already use.
 
-> Under construction, in phases. Today (phase 6) there is the Memória: the Dominus at the center and
-> the neurons in 3D around it, only for whoever started the Cerebro. Each neuron opens its own
-> isolated application, and neurons talk only through the contract, with your permission. The core
-> already talks to your AI (Claude Code, or any API in the OpenAI format), measures the quota and
-> keeps the graph.
+> Under construction, in phases. Today (phase 7) there is the Memória: the Dominus at the center and
+> the neurons in 3D around it, only for whoever started the Cerebro. Ask the Dominus for a neuron:
+> it plans (with the cost up front), you accept and it builds the application, isolated. Neurons
+> talk only through the contract, with your permission. The core talks to your AI (Claude Code, or
+> any API in the OpenAI format), measures the quota and keeps the graph.
 
 **Install:** Node.js 24+ and pnpm, then `pnpm install`, `pnpm build`, `pnpm start` and open
 the link the terminal shows (it works once, for 15 minutes; another browser gets a new link). Your data lives in the system's data folder, outside the program folder.

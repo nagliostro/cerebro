@@ -64,7 +64,7 @@ export function NeuronFrame({ id, src, title }: { id: string; src: string; title
       <p
         role="status"
         aria-live="polite"
-        className={`pointer-events-none fixed bottom-6 left-1/2 w-[min(90vw,32rem)] -translate-x-1/2 text-center transition-all duration-300 ${notice ? 'opacity-100' : 'translate-y-2 opacity-0'}`}
+        className={`pointer-events-none fixed bottom-[104px] left-1/2 w-[min(90vw,32rem)] -translate-x-1/2 text-center transition-all duration-300 ${notice ? 'opacity-100' : 'translate-y-2 opacity-0'}`}
       >
         {notice}
       </p>

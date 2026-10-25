@@ -18,9 +18,11 @@ test.describe('memória', () => {
 
     const dominus = page.getByRole('button', { name: 'Dominus' });
     await expect(dominus).toBeVisible();
-    // The Dominus, and the four neurons that open their applications; nothing else to touch.
+    // The Dominus, the four neurons that open their applications and the box to ask the
+    // Dominus (its send button shows only with text); nothing else to touch.
     await expect(page.getByRole('button')).toHaveCount(1);
     await expect(page.getByRole('link')).toHaveCount(4);
+    await expect(page.getByRole('textbox', { name: 'Peça ao Dominus' })).toBeVisible();
 
     const status = page.locator('#dominus-status');
     await expect(status).toBeHidden();
@@ -28,9 +30,8 @@ test.describe('memória', () => {
     await expect(dominus).toHaveAttribute('aria-expanded', 'true');
     await expect(status).toContainText('Cerebro 0.1.0');
     await expect(status).toContainText('Seus dados ficam em');
-    await expect(status).toContainText('Nenhuma IA conectada ainda');
-    // The Dominus core answered: it checked the (absent, in the tests) Claude Code.
-    await expect(status).toContainText('Claude Code não está instalado neste computador');
+    // The Dominus core answered: it checked the AIs (only the simulated one, in the tests).
+    await expect(status).toContainText('IA conectada: Simulated test');
     await expect(status).toContainText('4 neurônios · 1 de ofício');
 
     await page.keyboard.press('Escape');
@@ -74,6 +75,7 @@ test('English when the browser does not speak Portuguese', async ({ browser }) =
   await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await page.getByRole('button', { name: 'Dominus' }).click();
-  await expect(page.locator('#dominus-status')).toContainText('No AI connected yet');
+  await expect(page.locator('#dominus-status')).toContainText('AI connected: Simulated test');
+  await expect(page.getByRole('textbox', { name: 'Ask the Dominus' })).toBeVisible();
   await context.close();
 });

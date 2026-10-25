@@ -28,6 +28,21 @@ describe('queue', () => {
     expect(queue.claim()).toBeNull();
   });
 
+  it('runs one build at a time on each connection; other work goes on', () => {
+    const build = (provider: string) =>
+      queue.enqueue({ type: 'ask', payload: { kind: 'build', provider }, priority: 5 });
+    const first = build('a');
+    const second = build('a');
+    const elsewhere = build('b');
+    const chat = queue.enqueue({ type: 'ask', payload: { kind: 'chat', provider: 'a' } });
+    expect(queue.claim()?.id).toBe(first);
+    expect(queue.claim()?.id).toBe(elsewhere);
+    expect(queue.claim()?.id).toBe(chat);
+    expect(queue.claim()).toBeNull();
+    queue.finish(first, 'done', { result: {} });
+    expect(queue.claim()?.id).toBe(second);
+  });
+
   it('gives a job back with its checkpoint, until the attempts run out', () => {
     const id = queue.enqueue({ type: 'a', maxAttempts: 2 });
     queue.claim();

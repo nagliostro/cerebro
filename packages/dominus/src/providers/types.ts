@@ -46,15 +46,23 @@ export type AskRequest = {
   effort?: 'low' | 'medium' | 'high';
   /** Agent mode: the only folder it may work in. */
   cwd?: string;
+  /**
+   * Agent mode, files only: it may read and write files inside cwd and nothing else (no commands,
+   * no internet, no files outside). What building a neuron uses.
+   */
+  access?: 'files';
   /** Continue this conversation (only if capabilities.sessions). */
   sessionId?: string;
   signal?: AbortSignal;
 };
 
+export type ToolAction = 'read' | 'write' | 'search' | 'other';
+
 /** Progress while the AI works, in Dominus terms. */
 export type AskEvent =
   | { type: 'text'; text: string }
-  | { type: 'tool'; name: string }
+  /** The agent used a tool: what kind of action, and on which file (relative to cwd), if any. */
+  | { type: 'tool'; action: ToolAction; target?: string }
   | { type: 'quota'; windows: QuotaWindow[] };
 
 export type AskResult = {

@@ -161,7 +161,8 @@ export class Queue {
       .prepare(
         `SELECT status, finished_at AS finishedAt,
                 json_extract(payload, '$.kind') AS kind, json_extract(payload, '$.role') AS role,
-                json_extract(payload, '$.mode') AS mode, json_extract(result, '$.costUsd') AS costUsd
+                json_extract(payload, '$.mode') AS mode, json_extract(result, '$.costUsd') AS costUsd,
+                finished_at - started_at AS elapsedMs
          FROM jobs WHERE type = 'ask' AND status IN ('done', 'failed')
            AND json_extract(payload, '$.provider') = ? AND finished_at >= ?
          ORDER BY finished_at`,
@@ -173,6 +174,7 @@ export class Queue {
       role: string;
       mode: string;
       costUsd: number | null;
+      elapsedMs: number | null;
     }[];
   }
 
@@ -226,14 +228,21 @@ export class Queue {
     return id;
   }
 
-  /** Atomically takes the next queued job (highest priority, then oldest). */
+  /**
+   * Atomically takes the next queued job (highest priority, then oldest). A build waits while
+   * another build runs on the same connection: one at a time each, so two never split its quota.
+   */
   claim(): JobRow | null {
     const row = this.db
       .prepare(
         `UPDATE jobs SET status = 'running', attempts = attempts + 1, started_at = ?
-         WHERE id = (SELECT id FROM jobs WHERE status = 'queued'
-                       AND (not_before IS NULL OR not_before <= ?2)
-                     ORDER BY priority DESC, created_at LIMIT 1)
+         WHERE id = (SELECT q.id FROM jobs q WHERE q.status = 'queued'
+                       AND (q.not_before IS NULL OR q.not_before <= ?2)
+                       AND NOT (json_extract(q.payload, '$.kind') = 'build' AND EXISTS (
+                         SELECT 1 FROM jobs r WHERE r.status = 'running'
+                           AND json_extract(r.payload, '$.kind') = 'build'
+                           AND json_extract(r.payload, '$.provider') = json_extract(q.payload, '$.provider')))
+                     ORDER BY q.priority DESC, q.created_at LIMIT 1)
          RETURNING *`,
       )
       .get(nowMs(), nowMs());

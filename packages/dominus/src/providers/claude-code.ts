@@ -2,7 +2,14 @@ import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 
-import type { AiProvider, AskEvent, AskResult, HealthCheck, QuotaWindow } from './types.ts';
+import type {
+  AiProvider,
+  AskEvent,
+  AskResult,
+  HealthCheck,
+  QuotaWindow,
+  ToolAction,
+} from './types.ts';
 
 // Claude Code adapter: the owner's own CLI and subscription, where they logged in themselves.
 // Everything Claude-specific lives here: model aliases, flags, the stream-json format and the
@@ -21,6 +28,42 @@ const TEXT_FLAGS = [
   '',
   '--disable-slash-commands',
 ];
+
+// Files only (building a neuron): the file tools, edits accepted only inside the working folder
+// (anything outside would need a person to approve, and there is none), no commands, no internet,
+// and none of the owner's own settings, hooks or MCP servers.
+const FILE_TOOLS = ['Read', 'Write', 'Edit', 'Glob', 'Grep'];
+const FILE_FLAGS = [
+  '--tools',
+  FILE_TOOLS.join(','),
+  '--permission-mode',
+  'acceptEdits',
+  '--strict-mcp-config',
+  '--setting-sources',
+  '',
+  '--disable-slash-commands',
+];
+const ACTIONS: Record<string, ToolAction> = {
+  Read: 'read',
+  Write: 'write',
+  Edit: 'write',
+  MultiEdit: 'write',
+  NotebookEdit: 'write',
+  Glob: 'search',
+  Grep: 'search',
+};
+
+/** A tool call → a generic action, with its file relative to the working folder. */
+export function toolEvent(
+  block: { name?: string; input?: { file_path?: unknown; path?: unknown } },
+  cwd: string,
+): AskEvent {
+  const action = ACTIONS[block.name ?? ''] ?? 'other';
+  const file = block.input?.file_path ?? block.input?.path;
+  if (typeof file !== 'string') return { type: 'tool', action };
+  const rel = path.relative(path.resolve(cwd), path.resolve(cwd, file)).split(path.sep).join('/');
+  return { type: 'tool', action, target: rel.startsWith('..') ? undefined : rel || '.' };
+}
 
 type Options = {
   /** The command and its first arguments; tests point it to a fake CLI. */
@@ -113,7 +156,10 @@ export function claudeCode(opts: Options): AiProvider {
         args.push('--verbose');
         const text = req.mode === 'text';
         if (text) args.push(...TEXT_FLAGS, '--system-prompt', req.system ?? 'Answer briefly.');
-        else if (req.system) args.push('--append-system-prompt', req.system);
+        else {
+          if (req.access === 'files') args.push(...FILE_FLAGS);
+          if (req.system) args.push('--append-system-prompt', req.system);
+        }
         if (req.effort) args.push('--effort', req.effort);
         if (req.sessionId) args.push('--resume', req.sessionId);
         // An agent without its own folder would work wherever the core runs: never allowed.
@@ -153,7 +199,7 @@ export function claudeCode(opts: Options): AiProvider {
             else if (ev.type === 'assistant')
               for (const b of ev.message?.content ?? []) {
                 if (b.type === 'text') emit({ type: 'text', text: b.text });
-                if (b.type === 'tool_use') emit({ type: 'tool', name: b.name });
+                if (b.type === 'tool_use') emit(toolEvent(b, cwd));
               }
             else if (ev.type === 'result') final = ev;
           }

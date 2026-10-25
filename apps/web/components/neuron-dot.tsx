@@ -8,12 +8,15 @@ export function NeuronDot({
   expanded,
   controls,
   onClick,
+  busy = false,
 }: {
   color: string;
   label: string;
   expanded?: boolean;
   controls?: string;
   onClick?: () => void;
+  /** Thinking or building: it grows and the halo breathes faster. */
+  busy?: boolean;
 }) {
   const Tag = onClick ? 'button' : 'span';
   const role = onClick
@@ -23,21 +26,22 @@ export function NeuronDot({
     <Tag
       {...role}
       aria-label={label}
-      className={`group relative grid size-16 place-items-center rounded-full outline-none ${onClick ? 'cursor-pointer' : ''}`}
+      className={`group relative grid size-16 place-items-center rounded-full transition-transform duration-500 outline-none ${onClick ? 'cursor-pointer' : ''} ${busy ? 'scale-125' : ''}`}
       style={{ '--dot': color } as React.CSSProperties}
     >
       {/* A halo that breathes slowly */}
       <span
         aria-hidden
-        className="absolute inset-0 animate-[breathe_4s_ease-in-out_infinite] rounded-full"
+        className={`absolute inset-0 rounded-full ${busy ? 'animate-[breathe_1.4s_ease-in-out_infinite]' : 'animate-[breathe_4s_ease-in-out_infinite]'}`}
         style={{
+          transition: 'background 0.8s',
           background:
             'radial-gradient(circle, color-mix(in oklch, var(--dot) 45%, transparent), transparent 70%)',
         }}
       />
       <span
         aria-hidden
-        className="relative size-3 rounded-full transition-transform duration-700 group-hover:scale-125 group-focus-visible:scale-125"
+        className="relative size-3 rounded-full transition-[transform,background-color,box-shadow] duration-700 group-hover:scale-125 group-focus-visible:scale-125"
         style={{ background: 'var(--dot)', boxShadow: '0 0 12px var(--dot)' }}
       />
       {/* Only the text, no frame; shows on hover and keyboard focus */}

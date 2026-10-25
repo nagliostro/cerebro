@@ -7,6 +7,7 @@
     "./client": "./src/client.ts",
     "./data-dir": "./src/data-dir.ts",
     "./paths": "./src/paths.ts",
+    "./plan": "./src/builder/plan.ts",
     "./quota": "./src/quota/status.ts",
     "./types": "./src/providers/types.ts",
     "./vault": "./src/vault.ts"

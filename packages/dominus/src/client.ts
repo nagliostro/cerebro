@@ -48,6 +48,47 @@ export async function coreRequest<T>(
   });
 }
 
+/**
+ * The core's live events (server-sent), one object per event, until `signal` aborts or the core
+ * goes away; then it resolves. Used by the screens to follow a plan without asking again and again.
+ */
+export async function coreEvents(
+  onEvent: (e: { type: string } & Record<string, unknown>) => void,
+  signal: AbortSignal,
+  paths: CorePaths = corePaths(),
+): Promise<void> {
+  const token = (await readFile(paths.token, 'utf8')).trim();
+  await new Promise<void>((resolve) => {
+    const req = request(
+      {
+        socketPath: paths.socket,
+        path: '/events',
+        headers: { authorization: `Bearer ${token}` },
+        signal,
+      },
+      (res) => {
+        let rest = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk: string) => {
+          const parts = (rest + chunk).split('\n\n');
+          rest = parts.pop() ?? '';
+          for (const part of parts) {
+            try {
+              onEvent(JSON.parse(part.replace(/^data: /, '')));
+            } catch {
+              // Not an event line.
+            }
+          }
+        });
+        res.on('end', resolve);
+        res.on('error', () => resolve());
+      },
+    );
+    req.on('error', () => resolve());
+    req.end();
+  });
+}
+
 export const isCoreUp = (paths: CorePaths = corePaths()) =>
   coreRequest('GET', '/stats', undefined, paths).then(
     () => true,

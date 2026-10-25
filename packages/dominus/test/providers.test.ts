@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import os from 'node:os';
@@ -90,6 +91,40 @@ describe('claude code adapter', () => {
     );
   });
 
+  it('builds with files only: file tools, edits only in its folder, none of the owner settings', async () => {
+    const provider = await fakeCli(`
+      process.stdin.resume();
+      process.stdin.on('end', () => {
+        const out = (o) => console.log(JSON.stringify(o));
+        const tool = (name, input) => ({ type: 'tool_use', name, input });
+        out({ type: 'assistant', message: { content: [
+          tool('Write', { file_path: process.cwd() + '/index.html' }),
+          tool('Read', { file_path: 'app.js' }),
+          tool('Glob', { pattern: '*' }),
+          tool('Edit', { file_path: '../elsewhere.txt' }),
+        ] } });
+        out({ type: 'result', result: process.argv.slice(2).join(' '), usage: {} });
+      });`);
+    const cwd = path.join(dir, 'draft');
+    const events: AskEvent[] = [];
+    const result = await provider.ask(
+      { prompt: 'build', role: 'balanced', mode: 'agent', access: 'files', cwd },
+      (e) => events.push(e),
+    );
+    expect(result.text).toContain(
+      '--tools Read,Write,Edit,Glob,Grep --permission-mode acceptEdits',
+    );
+    expect(result.text).toContain(
+      '--strict-mcp-config --setting-sources  --disable-slash-commands',
+    );
+    expect(events.filter((e) => e.type === 'tool')).toEqual([
+      { type: 'tool', action: 'write', target: 'index.html' },
+      { type: 'tool', action: 'read', target: 'app.js' },
+      { type: 'tool', action: 'search' },
+      { type: 'tool', action: 'write', target: undefined },
+    ]);
+  });
+
   it('says when it is missing or not logged in', async () => {
     const missing = claudeCode({ bin: [path.join(dir, 'nothing')], textDir: dir });
     expect(await missing.check()).toMatchObject({ ok: false, problem: 'not-installed' });
@@ -124,6 +159,37 @@ describe('openai-compatible adapter', () => {
       req.on('data', (d) => (s += d));
       req.on('end', () => {
         seen.body = JSON.parse(s);
+        if (seen.body!.tools) {
+          // Agent mode: the first turn asks for two writes (one outside the folder), then it ends.
+          const turn = (seen.body!.messages as object[]).filter(
+            (m) => (m as { role: string }).role === 'assistant',
+          ).length;
+          const call = (id: string, file: string) => ({
+            id,
+            type: 'function',
+            function: {
+              name: 'write_file',
+              arguments: JSON.stringify({ path: file, content: 'hi' }),
+            },
+          });
+          const message =
+            turn === 0
+              ? {
+                  role: 'assistant',
+                  content: null,
+                  tool_calls: [call('a', 'index.html'), call('b', '../out.txt')],
+                }
+              : { role: 'assistant', content: 'Built it.' };
+          res.writeHead(200, { 'content-type': 'application/json' });
+          res.end(
+            JSON.stringify({
+              model: 'mid-1',
+              choices: [{ message }],
+              usage: { prompt_tokens: 10, completion_tokens: 5 },
+            }),
+          );
+          return;
+        }
         res.writeHead(200, { 'content-type': 'text/event-stream' });
         const send = (o: object) => res.write(`data: ${JSON.stringify(o)}\n\n`);
         send({ model: 'small-1', choices: [{ delta: { content: 'Hel' } }] });
@@ -193,9 +259,29 @@ describe('openai-compatible adapter', () => {
     });
   });
 
-  it('runs only in text mode for now', async () => {
+  it('runs an agent with files only, inside its folder, the Cerebro running the tools', async () => {
     const provider = openAiCompatible(connection(), vaultWith('sk-good'));
-    expect(provider.capabilities.modes).toEqual(['text']);
-    await expect(provider.ask({ prompt: 'x', role: 'cheap', mode: 'agent' })).rejects.toThrow();
+    expect(provider.capabilities.modes).toEqual(['text', 'agent']);
+    await expect(provider.ask({ prompt: 'x', role: 'cheap', mode: 'agent' })).rejects.toThrow(
+      /only with files/,
+    );
+    const cwd = await mkdtemp(path.join(os.tmpdir(), 'cerebro-agent-'));
+    const events: AskEvent[] = [];
+    const result = await provider.ask(
+      { prompt: 'build', role: 'balanced', mode: 'agent', access: 'files', cwd },
+      (e) => events.push(e),
+    );
+    expect(result).toMatchObject({ text: 'Built it.', inputTokens: 20, outputTokens: 10 });
+    expect(readFileSync(path.join(cwd, 'index.html'), 'utf8')).toBe('hi');
+    expect(existsSync(path.join(cwd, '..', 'out.txt'))).toBe(false);
+    expect(events).toContainEqual({ type: 'tool', action: 'write', target: 'index.html' });
+    const answers = (seen.body!.messages as { role: string; content: string }[]).filter(
+      (m) => m.role === 'tool',
+    );
+    expect(answers.map((m) => m.content)).toEqual([
+      'wrote index.html',
+      'error: outside the folder',
+    ]);
+    await rm(cwd, { recursive: true, force: true });
   });
 });

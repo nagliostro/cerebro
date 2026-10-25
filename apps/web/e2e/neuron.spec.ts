@@ -18,6 +18,8 @@ test('only its dot and name on top, the application below, and the way back', as
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Finanças');
   const app = page.frameLocator('iframe[title="Aplicação Finanças"]');
   await expect(app.getByRole('button', { name: 'Novo gasto' })).toBeVisible();
+  // The kit's icons are drawn inside it, with no network.
+  await expect(app.getByRole('button', { name: 'Novo gasto' }).locator('svg path')).toHaveCount(2);
   await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('link', { name: 'Memória' }).click();
   await expect(page).toHaveURL('/');
@@ -55,9 +57,13 @@ test('its files come only with a valid signed link, sandboxed', async ({ page, r
   expect(csp).toContain('sandbox allow-scripts allow-forms');
   expect(csp).toContain("connect-src 'none'");
   expect((await request.get('/apps/financas/forged.token/')).status()).toBe(404);
-  expect((await request.get(`${src}..%2F..%2Fsessions.json`)).status()).toBe(404);
+  const folder = src.replace(/index\.html$/, '');
+  expect((await request.get(`${folder}..%2F..%2Fsessions.json`)).status()).toBe(404);
   // Another neuron's link does not open this one.
   expect((await request.get(src.replace('/financas/', '/agenda/'))).status()).toBe(404);
+  // The kit reaches the isolated application, its font included (fonts load only with CORS).
+  const font = await request.get('/neuron-kit/geist-mono-500.woff2');
+  expect(font.headers()['access-control-allow-origin']).toBe('*');
 });
 
 test('the key: the owner allows another neuron, operation by operation, and revokes', async ({

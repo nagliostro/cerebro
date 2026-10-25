@@ -28,7 +28,7 @@ export type MemoryNeuron = {
   detail: string | null;
 };
 
-type Props = {
+export type MemoryProps = {
   dominusLabel: string;
   dominusLines: StatusLine[];
   neurons: MemoryNeuron[];
@@ -36,6 +36,14 @@ type Props = {
   synapses: Record<string, number>;
   /** Pairs with an active link (one neuron reads the other), in the same "a|b" form. */
   links: string[];
+  /** The Dominus is thinking or building: it grows, and the rest steps back to 45%. */
+  busy?: boolean;
+  /** While building, the Dominus takes the new neuron's color. */
+  dominusColor?: string;
+  /** A plan is open beside it (from 1280px): the sky slides left to make room. */
+  aside?: boolean;
+  /** What the Dominus is doing, drawn around it (and moving with the sky). */
+  children?: React.ReactNode;
 };
 
 const SAVED = 'cerebro.memory';
@@ -58,7 +66,17 @@ function load(): { places: Record<string, Vec3>; turn: Turn } | null {
  * double click on the sky goes back to the first view. Touching a neuron opens its application;
  * touching the Dominus shows what is true right now, and while it speaks the rest steps back.
  */
-export function Memory({ dominusLabel, dominusLines, neurons, synapses, links }: Props) {
+export function Memory({
+  dominusLabel,
+  dominusLines,
+  neurons,
+  synapses,
+  links,
+  busy = false,
+  dominusColor,
+  aside = false,
+  children,
+}: MemoryProps) {
   const [open, setOpen] = useState(false);
   const sky = useRef<HTMLElement>(null);
   const svg = useRef<SVGSVGElement>(null);
@@ -231,17 +249,18 @@ export function Memory({ dominusLabel, dominusLines, neurons, synapses, links }:
   }, [draw, save]);
 
   const speaking = open;
+  const dim = speaking ? 'opacity-25' : busy ? 'opacity-45' : '';
 
   return (
     <main
       ref={sky}
-      className="fixed inset-0 cursor-grab touch-none select-none data-dragging:cursor-grabbing"
+      className={`fixed inset-0 cursor-grab touch-none transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0,0,1)] select-none data-dragging:cursor-grabbing ${aside ? 'xl:-translate-x-[200px]' : ''}`}
     >
       <h1 className="sr-only">Cerebro</h1>
       <svg
         ref={svg}
         aria-hidden
-        className={`pointer-events-none absolute inset-0 size-full transition-opacity duration-300 ${speaking ? 'opacity-25' : ''}`}
+        className={`pointer-events-none absolute inset-0 size-full transition-opacity duration-300 ${dim}`}
       />
 
       {neurons.map((n) => (
@@ -257,7 +276,7 @@ export function Memory({ dominusLabel, dominusLines, neurons, synapses, links }:
           aria-label={n.detail ? `${n.name}, ${n.detail}` : n.name}
           // A drag is not a touch: it moved the neuron, it does not open it.
           onClick={(e) => moved.current && e.preventDefault()}
-          className={`group invisible absolute top-0 left-0 -mt-[22px] -ml-[22px] grid size-11 cursor-grab place-items-center rounded-full transition-[filter] duration-300 outline-none ${speaking ? '[filter:opacity(0.25)]' : ''}`}
+          className={`group invisible absolute top-0 left-0 -mt-[22px] -ml-[22px] grid size-11 cursor-grab place-items-center rounded-full transition-[filter] duration-300 outline-none ${speaking ? '[filter:opacity(0.25)]' : busy ? '[filter:opacity(0.45)]' : ''}`}
           style={
             {
               '--dot': n.color,
@@ -292,10 +311,13 @@ export function Memory({ dominusLabel, dominusLines, neurons, synapses, links }:
         </Link>
       ))}
 
+      {children}
+
       {/* The Dominus, always above what is behind it. */}
       <div className="absolute top-[calc(50%+12px)] left-1/2 z-50 -translate-x-1/2 -translate-y-1/2">
         <NeuronDot
-          color={DOMINUS_COLOR}
+          color={dominusColor ?? DOMINUS_COLOR}
+          busy={busy}
           label={dominusLabel}
           expanded={open}
           controls="dominus-status"

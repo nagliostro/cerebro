@@ -44,6 +44,96 @@ const messages = {
       noData: `${name} ainda não tem dados para oferecer.`,
       failed: 'Não deu para salvar; tente de novo.',
     }),
+    build: {
+      ask: 'Peça ao Dominus',
+      askAdjust: (name: string) => `Peça um ajuste a ${name}`,
+      send: 'Enviar',
+      stop: 'Parar',
+      plan: 'Plano',
+      step: {
+        read: (words: number) => `Pedido lido · ${words} ${words === 1 ? 'palavra' : 'palavras'}`,
+        memory: (count: number, similar: string | null) =>
+          count === 0
+            ? 'Memória vazia: será o primeiro neurônio'
+            : similar
+              ? `${count} ${count === 1 ? 'neurônio' : 'neurônios'}; ${similar} parece próximo`
+              : `${count} ${count === 1 ? 'neurônio' : 'neurônios'}; nenhum cuida disso ainda`,
+        thinking: 'Pensando no plano',
+        thought: (cost: string) => `Plano pronto · ${cost}`,
+        writing: (file: string) => `Criando ${file}`,
+        written: (file: string) => `${file} criado`,
+        checked: (files: number, size: string) =>
+          `Conferido: ${files} ${files === 1 ? 'arquivo' : 'arquivos'}, ${size}`,
+        waiting: (time: string) => `Esperando a cota renovar às ${time}`,
+      },
+      role: { life: 'vida', craft: 'ofício' },
+      questionsTitle: 'Faltam detalhes',
+      questionsLead: 'Antes de planejar, preciso saber',
+      answers: 'Suas respostas',
+      reply: 'Responder',
+      reject: 'Rejeitar',
+      accept: 'Construir',
+      acceptAdjust: 'Ajustar',
+      change: 'Alterar',
+      changes: 'O que mudar no plano',
+      redo: 'Refazer o plano',
+      back: 'Voltar',
+      said: (text: string) => `Você disse: ${text}`,
+      understood: 'Como entendi',
+      creates: 'O que será criado',
+      changesList: 'O que vai mudar',
+      data: 'Dados',
+      links: 'Ligações',
+      reads: (name: string) => `Lê ${name}`,
+      linksNote: (name: string) =>
+        `Ao construir, ${name} ganha permissão para visualizar isso. Você muda pela chave.`,
+      checks: 'Como saber que ficou pronto',
+      limits: 'Fica para depois',
+      existing: (name: string) => `${name} já parece cuidar disso.`,
+      open: (name: string) => `Abrir ${name}`,
+      usd: (x: number) =>
+        `US$ ${x.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: x > 0 && x < 0.01 ? 4 : 2 })}`,
+      percent: (x: number) =>
+        `${(x * 100).toLocaleString('pt-BR', { maximumFractionDigits: x < 0.1 ? 1 : 0 })}%`,
+      thinkCost: (cost: string) => `Pensar custou ${cost}`,
+      estimate: {
+        fits: (cost: string, window: string, share: string) =>
+          `Construir: até ${cost} · cabe na ${window} (cerca de ${share})`,
+        tight: (cost: string, window: string, share: string) =>
+          `Construir: até ${cost} · justo na ${window} (cerca de ${share}); pode parar perto do fim`,
+        wait: (cost: string, window: string, time: string) =>
+          `Construir: até ${cost} · não cabe na ${window} agora; ela renova às ${time}`,
+        cost: (cost: string) => `Construir: até ${cost}`,
+        basis: (n: number) => `pelas últimas ${n} construções`,
+        unknown: 'Construir: sem estimativa ainda; ela vem depois de 3 construções medidas',
+        noAi: 'Nenhuma IA pronta para construir agora',
+      },
+      building: (name: string, files: number) =>
+        `Construindo ${name} · ${files} ${files === 1 ? 'arquivo' : 'arquivos'}`,
+      adjusting: (name: string, files: number) =>
+        `Ajustando ${name} · ${files} ${files === 1 ? 'arquivo' : 'arquivos'}`,
+      left: (min: number, sec: number) =>
+        `≈ ${min ? `${min} min ` : ''}${String(sec).padStart(2, '0')} s para concluir`,
+      late: 'Passou da previsão; quase lá',
+      firstTime: 'Sem previsão ainda: medindo esta primeira vez',
+      built: (name: string) => `${name} · neurônio criado`,
+      adjusted: (name: string) => `${name} · ajustado`,
+      buildCost: (cost: string | null) =>
+        cost ? `Construir custou ${cost}` : 'Construir: a IA não informou o custo',
+      failed: {
+        'none-ready': 'Nenhuma IA pronta. Conecte uma IA e tente de novo.',
+        'all-out-of-quota': 'Todas as IAs estão sem cota agora.',
+        'bad-plan': 'O plano veio num formato que não deu para ler.',
+        'bad-build': 'A construção não deixou uma aplicação que funcione. Nada foi criado.',
+        other: (why: string) => `Parou: ${why}`,
+      },
+      retry: 'Tentar de novo',
+      close: 'Fechar',
+      undo: 'Desfazer',
+      undone: (name: string) => `${name} · ajuste desfeito, a versão anterior voltou`,
+      canceled: 'Cancelado.',
+      buildCanceled: 'Construção cancelada. Nada foi criado.',
+    },
     locked: 'Para entrar, abra o link que apareceu no terminal onde o Cerebro foi iniciado.',
   },
   en: {
@@ -86,6 +176,96 @@ const messages = {
       noData: `${name} has no data to offer yet.`,
       failed: 'Could not save; try again.',
     }),
+    build: {
+      ask: 'Ask the Dominus',
+      askAdjust: (name: string) => `Ask for a change to ${name}`,
+      send: 'Send',
+      stop: 'Stop',
+      plan: 'Plan',
+      step: {
+        read: (words: number) => `Request read · ${words} ${words === 1 ? 'word' : 'words'}`,
+        memory: (count: number, similar: string | null) =>
+          count === 0
+            ? 'Empty memory: this will be the first neuron'
+            : similar
+              ? `${count} ${count === 1 ? 'neuron' : 'neurons'}; ${similar} looks close`
+              : `${count} ${count === 1 ? 'neuron' : 'neurons'}; none does this yet`,
+        thinking: 'Thinking of the plan',
+        thought: (cost: string) => `Plan ready · ${cost}`,
+        writing: (file: string) => `Writing ${file}`,
+        written: (file: string) => `${file} written`,
+        checked: (files: number, size: string) =>
+          `Checked: ${files} ${files === 1 ? 'file' : 'files'}, ${size}`,
+        waiting: (time: string) => `Waiting for the quota to reset at ${time}`,
+      },
+      role: { life: 'life', craft: 'craft' },
+      questionsTitle: 'Details missing',
+      questionsLead: 'Before planning, I need to know',
+      answers: 'Your answers',
+      reply: 'Answer',
+      reject: 'Reject',
+      accept: 'Build',
+      acceptAdjust: 'Adjust',
+      change: 'Change',
+      changes: 'What to change in the plan',
+      redo: 'Plan again',
+      back: 'Back',
+      said: (text: string) => `You said: ${text}`,
+      understood: 'How I understood it',
+      creates: 'What will be made',
+      changesList: 'What will change',
+      data: 'Data',
+      links: 'Links',
+      reads: (name: string) => `Reads ${name}`,
+      linksNote: (name: string) =>
+        `When built, ${name} gets permission to view this. You change it with the key.`,
+      checks: 'How to tell it is ready',
+      limits: 'Left for later',
+      existing: (name: string) => `${name} seems to do this already.`,
+      open: (name: string) => `Open ${name}`,
+      usd: (x: number) =>
+        `US$ ${x.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: x > 0 && x < 0.01 ? 4 : 2 })}`,
+      percent: (x: number) =>
+        `${(x * 100).toLocaleString('en', { maximumFractionDigits: x < 0.1 ? 1 : 0 })}%`,
+      thinkCost: (cost: string) => `Thinking cost ${cost}`,
+      estimate: {
+        fits: (cost: string, window: string, share: string) =>
+          `Building: up to ${cost} · fits in the ${window} (about ${share})`,
+        tight: (cost: string, window: string, share: string) =>
+          `Building: up to ${cost} · tight in the ${window} (about ${share}); it may stop near the end`,
+        wait: (cost: string, window: string, time: string) =>
+          `Building: up to ${cost} · does not fit in the ${window} now; it resets at ${time}`,
+        cost: (cost: string) => `Building: up to ${cost}`,
+        basis: (n: number) => `from the last ${n} builds`,
+        unknown: 'Building: no estimate yet; it comes after 3 measured builds',
+        noAi: 'No AI ready to build right now',
+      },
+      building: (name: string, files: number) =>
+        `Building ${name} · ${files} ${files === 1 ? 'file' : 'files'}`,
+      adjusting: (name: string, files: number) =>
+        `Adjusting ${name} · ${files} ${files === 1 ? 'file' : 'files'}`,
+      left: (min: number, sec: number) =>
+        `≈ ${min ? `${min} min ` : ''}${String(sec).padStart(2, '0')} s to finish`,
+      late: 'Past the estimate; almost there',
+      firstTime: 'No estimate yet: measuring this first time',
+      built: (name: string) => `${name} · neuron created`,
+      adjusted: (name: string) => `${name} · adjusted`,
+      buildCost: (cost: string | null) =>
+        cost ? `Building cost ${cost}` : 'Building: the AI did not report the cost',
+      failed: {
+        'none-ready': 'No AI ready. Connect an AI and try again.',
+        'all-out-of-quota': 'Every AI is out of quota right now.',
+        'bad-plan': 'The plan came in a form that could not be read.',
+        'bad-build': 'The build did not leave a working application. Nothing was created.',
+        other: (why: string) => `It stopped: ${why}`,
+      },
+      retry: 'Try again',
+      close: 'Close',
+      undo: 'Undo',
+      undone: (name: string) => `${name} · adjustment undone, the previous version is back`,
+      canceled: 'Canceled.',
+      buildCanceled: 'Build canceled. Nothing was created.',
+    },
     locked: 'To enter, open the link shown in the terminal where the Cerebro was started.',
   },
 } satisfies Record<Locale, Record<string, unknown>>;

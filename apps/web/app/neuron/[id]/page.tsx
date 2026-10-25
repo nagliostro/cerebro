@@ -2,11 +2,13 @@ import { coreRequest } from '@cerebro/dominus/client';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 
+import { Construction } from '@/components/construction';
 import { NeuronFrame } from '@/components/neuron-frame';
 import { PermissionsPanel } from '@/components/permissions-panel';
 import { TopMenu } from '@/components/top-menu';
 import { pickLocale, t } from '@/lib/i18n';
 import { appToken, hasApp } from '@/lib/server/app-links';
+import { currentPlan } from '@/lib/server/plans';
 import { validNeuronId } from '@/lib/server/require-session';
 
 type Neuron = { id: string; name: string; color: string; role: 'life' | 'craft' };
@@ -18,21 +20,26 @@ type Permission = {
 };
 
 // A neuron's screen: at the top only its dot and name, and the key to its permissions; below, its
-// application fills the screen, isolated, over the same sky. The menu leads back to the Memória.
+// application fills the screen, isolated, over the same sky; at the foot, the Dominus box to ask
+// for a change (or for its first application). The menu leads back to the Memória.
 export default async function NeuronPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!validNeuronId(id)) notFound();
-  const m = t(pickLocale((await headers()).get('accept-language')));
+  const locale = pickLocale((await headers()).get('accept-language'));
+  const m = t(locale);
 
   const neuron = await coreRequest<Neuron>('GET', `/neurons/${id}`).catch(() => null);
   if (!neuron) notFound();
-  const [contract, permissions, graph, built] = await Promise.all([
+  const [contract, permissions, graph, built, plan] = await Promise.all([
     coreRequest<Contract>('GET', `/neurons/${id}/contract`),
     coreRequest<Permission[]>('GET', `/neurons/${id}/permissions`),
     coreRequest<{ neurons: Neuron[] }>('GET', '/graph'),
     hasApp(id),
+    currentPlan(id),
   ]);
-  const src = built ? `/apps/${id}/${await appToken(id)}/` : null;
+  // index.html by name: a folder URL ("/") would be redirected without the slash, and the
+  // application's relative files would then lose the token.
+  const src = built ? `/apps/${id}/${await appToken(id)}/index.html` : null;
 
   return (
     <div className="flex flex-1 flex-col">
@@ -63,6 +70,13 @@ export default async function NeuronPage({ params }: { params: Promise<{ id: str
           {m.appMissing(neuron.name)}
         </p>
       )}
+      <Construction
+        key={id}
+        locale={locale}
+        others={graph.neurons.map((n) => ({ id: n.id, name: n.name, color: n.color }))}
+        target={{ id, name: neuron.name }}
+        initial={plan}
+      />
     </div>
   );
 }

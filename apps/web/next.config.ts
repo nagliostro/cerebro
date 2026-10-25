@@ -8,6 +8,16 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@cerebro/dominus'],
   // Native module (the system's credential store): loaded by Node, never bundled.
   serverExternalPackages: ['@napi-rs/keyring'],
+  // The neuron kit is public and the same for everyone. Applications run with an opaque origin
+  // ("null"), and fonts load only with CORS: without this the kit's font never reaches them.
+  async headers() {
+    return [
+      {
+        source: '/neuron-kit/:file*',
+        headers: [{ key: 'access-control-allow-origin', value: '*' }],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

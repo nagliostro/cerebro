@@ -127,10 +127,7 @@ export class Graph {
     if (input.role !== undefined && input.role !== 'life' && input.role !== 'craft')
       throw new GraphError('invalid role');
     const id = this.uniqueId(name);
-    const used = (this.db.prepare(`SELECT color FROM neurons`).all() as { color: string }[])
-      .map((r) => hueOf(r.color))
-      .filter(Number.isFinite);
-    let hue = nextHue(used);
+    let hue = this.suggestHue();
     if (input.hue !== undefined) {
       if (typeof input.hue !== 'number' || !isAllowedHue(input.hue))
         throw new GraphError('invalid hue');
@@ -140,6 +137,14 @@ export class Graph {
       .prepare(`INSERT INTO neurons (id, name, color, role, created_at) VALUES (?, ?, ?, ?, ?)`)
       .run(id, name, colorOf(hue), role, nowMs());
     return id;
+  }
+
+  /** The hue the next neuron gets: the allowed one farthest from those in use. */
+  suggestHue(): number {
+    const used = (this.db.prepare(`SELECT color FROM neurons`).all() as { color: string }[])
+      .map((r) => hueOf(r.color))
+      .filter(Number.isFinite);
+    return nextHue(used);
   }
 
   /** A readable id from the name ("Gastos da casa" → "gastos-da-casa"), unique. */

@@ -5,7 +5,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { existsSync, readFileSync } from 'node:fs';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import type { PlanRow } from '../src/builder/plan.ts';
 
 import { coreRequest, isCoreUp } from '../src/client.ts';
 import { corePaths, type CorePaths } from '../src/paths.ts';
@@ -28,6 +32,7 @@ function startCore() {
       CEREBRO_TEST_JOBS: '1',
       CEREBRO_SIMULATED: '1',
       CEREBRO_CLOCK: 'off',
+      CEREBRO_SIM_STEP_MS: '150',
       CEREBRO_CLAUDE_BIN: path.join(dir, 'no-such-claude'),
     },
   });
@@ -236,6 +241,111 @@ describe('dominus core', () => {
     await call('POST', '/neurons/financas/permissions', { revokeAll: true });
     await expect(call('POST', '/neurons/agenda/call', ask)).rejects.toThrow(/403/);
     await expect(call('GET', '/neurons/ghost/contract')).rejects.toThrow(/404/);
+  });
+
+  // Building neurons, with the simulated AI: plan, questions, answers, build, adjust, failures.
+  const plan = (id: string) => call<PlanRow>('GET', `/plans/${id}`);
+  const until = (id: string, ...statuses: string[]) =>
+    waitFor(async () => {
+      const p = await plan(id);
+      return statuses.includes(p.status) && p;
+    });
+  const ask = async (request: string, target?: string) =>
+    (await call<{ id: string }>('POST', '/plans', { request, locale: 'en', target })).id;
+  const neurons = async () =>
+    (await call<{ neurons: { id: string; name: string }[] }>('GET', '/graph')).neurons;
+
+  it('a short request gets questions; answered, it becomes a plan with steps and an estimate', async () => {
+    const id = await ask('plants');
+    const asked = await until(id, 'questions');
+    expect(asked.plan!.questions.length).toBeGreaterThan(0);
+    expect(asked.steps.map((s) => s.kind)).toEqual(['read', 'memory', 'think']);
+    await call('POST', `/plans/${id}/answer`, { text: 'water them every week' });
+    const ready = await until(id, 'ready');
+    expect(ready.plan).toMatchObject({ ready: true, name: 'Plants' });
+    expect(ready.exchanges).toEqual([{ kind: 'answer', text: 'water them every week' }]);
+    expect(ready.estimate).toMatchObject({ provider: 'simulated', basis: 0 });
+    expect(ready.color).toMatch(/^oklch\(0\.78 0\.11 \d+\)$/);
+    expect(await call('GET', '/plans/current')).toMatchObject({ id });
+    await call('POST', `/plans/${id}/reject`);
+    expect((await plan(id)).status).toBe('rejected');
+    expect(await call('GET', '/plans/current')).toBeNull();
+    await expect(call('POST', '/plans', { request: '' })).rejects.toThrow(/400/);
+  });
+
+  it('an accepted plan builds in a draft; only a good build joins the graph, with its links', async () => {
+    await call('POST', '/graph/neurons', { name: 'Notes' });
+    await call('POST', '/neurons/notes/data', {
+      collection: 'pages',
+      op: 'create',
+      input: { data: { title: 'a' } },
+    });
+    const id = await ask('Garden: what to plant each month [link:notes.pages]');
+    const ready = await until(id, 'ready');
+    expect(ready.plan!.links).toEqual([
+      { neuron: 'notes', collection: 'pages', why: 'to read it' },
+    ]);
+    await call('POST', `/plans/${id}/accept`);
+    const built = await until(id, 'built', 'failed');
+    expect(built.status).toBe('built');
+    expect(built.neuron).toBe('garden');
+    expect(built.steps.filter((s) => s.kind === 'file').map((s) => 'path' in s && s.path)).toEqual([
+      'index.html',
+      'style.css',
+      'app.js',
+    ]);
+    expect(built.steps.at(-1)).toMatchObject({ kind: 'check', files: 3 });
+    expect(existsSync(path.join(dir, 'neurons', 'garden', 'app', 'index.html'))).toBe(true);
+    expect(existsSync(path.join(dir, 'builds', id))).toBe(false);
+    const g = await call<{ neurons: { id: string; color: string }[]; links: object[] }>(
+      'GET',
+      '/graph',
+    );
+    expect(g.neurons.find((n) => n.id === 'garden')!.color).toBe(ready.color);
+    expect(g.links).toContainEqual({ reader: 'garden', target: 'notes' });
+    // The owner accepted the link with the plan: Garden may read the pages, and only read them.
+    await call('POST', '/neurons/garden/call', { target: 'notes', operation: 'pages.list' });
+    await expect(
+      call('POST', '/neurons/garden/call', { target: 'notes', operation: 'pages.create' }),
+    ).rejects.toThrow(/403/);
+  });
+
+  it('adjusting a neuron changes its application and keeps the previous one', async () => {
+    const id = await ask('add a counter', 'garden');
+    const ready = await until(id, 'ready');
+    expect(ready.plan!.name).toBe('Garden');
+    await call('POST', `/plans/${id}/accept`);
+    expect((await until(id, 'built', 'failed')).neuron).toBe('garden');
+    expect(existsSync(path.join(dir, 'neurons', 'garden', 'app.previous', 'index.html'))).toBe(
+      true,
+    );
+    const index = () =>
+      readFileSync(path.join(dir, 'neurons', 'garden', 'app', 'index.html'), 'utf8');
+    expect(index()).toContain('add a counter');
+    // Taken back: the previous application returns, and only once.
+    expect((await call<PlanRow>('POST', `/plans/${id}/undo`)).status).toBe('undone');
+    expect(index()).toContain('Garden: what to plant each month');
+    await expect(call('POST', `/plans/${id}/undo`)).rejects.toThrow(/400/);
+    expect((await neurons()).filter((n) => n.name === 'Garden')).toHaveLength(1);
+    expect(await call('GET', '/plans/current?target=garden')).toBeNull();
+  });
+
+  it('a failed or canceled build leaves nothing behind', async () => {
+    const before = (await neurons()).length;
+    const bad = await ask('Broken: a thing that fails [build-fail]');
+    await until(bad, 'ready');
+    await call('POST', `/plans/${bad}/accept`);
+    const failed = await until(bad, 'failed', 'built');
+    expect(failed.error).toMatch(/^bad-build: no index\.html/);
+    const stop = await ask('Stopped: a thing to cancel');
+    await until(stop, 'ready');
+    await call('POST', `/plans/${stop}/accept`);
+    await waitFor(async () => (await plan(stop)).steps.some((s) => s.kind === 'file'));
+    await call('POST', `/plans/${stop}/cancel`);
+    expect((await until(stop, 'canceled', 'built')).status).toBe('canceled');
+    expect((await neurons()).length).toBe(before);
+    expect(existsSync(path.join(dir, 'builds', bad))).toBe(false);
+    expect(existsSync(path.join(dir, 'builds', stop))).toBe(false);
   });
 
   it('uses less than 150 MB when idle', async () => {

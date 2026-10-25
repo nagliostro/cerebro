@@ -41,6 +41,11 @@ body {
   outline-offset: 4px;
 }
 
+/* The Dominus box marks focus on its whole frame (see .cb-light), not inside it. */
+.cb-light textarea:focus-visible {
+  outline: none;
+}
+
 @keyframes breathe {
   0%,
   100% {
@@ -70,4 +75,87 @@ body {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/*
+ * The Dominus box: a line of gold light runs round its border, once every 7s (every 2s while the
+ * Dominus works). Gold, because talking to the Dominus spends tokens.
+ */
+@property --cb-turn {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.cb-light {
+  position: relative;
+  isolation: isolate;
+}
+
+.cb-light::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    conic-gradient(
+        from var(--cb-turn),
+        transparent 0 80%,
+        color-mix(in oklch, var(--cb-cost) 70%, transparent) 90%,
+        transparent 100%
+      )
+      border-box,
+    linear-gradient(var(--cb-outline), var(--cb-outline)) border-box;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  animation: cb-run 7s linear infinite;
+}
+
+.cb-light[data-busy]::before {
+  animation-duration: 2s;
+}
+
+@keyframes cb-run {
+  to {
+    --cb-turn: 360deg;
+  }
+}
+
+/* Animated ellipsis after what is being done right now. */
+.cb-busy::after {
+  content: '';
+  animation: cb-dots 1.2s steps(4) infinite;
+}
+
+@keyframes cb-dots {
+  0% {
+    content: '';
+  }
+  25% {
+    content: '.';
+  }
+  50% {
+    content: '..';
+  }
+  75% {
+    content: '...';
+  }
+}
+
+@keyframes cb-pop {
+  from {
+    transform: scale(0);
+  }
+}
+
+/* A short line over the sky (the caption while the Dominus works). */
+.cb-pill {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: oklch(0.13 0.006 265 / 0.7);
+  backdrop-filter: blur(8px);
 }
