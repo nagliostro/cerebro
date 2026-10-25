@@ -153,8 +153,10 @@ function startWorker(job: JobRow) {
     else if (msg.kind === 'error') settle(r, 'failed', { error: msg.error });
   });
 
-  // Crash, kill or normal exit: anything not settled yet goes back to the queue.
-  proc.on('exit', (code, signal) => {
+  // Crash, kill or normal exit: anything not settled yet goes back to the queue. "close", not
+  // "exit": it comes after the last message on the channel is read, so a worker that said it
+  // finished (or must wait for its quota) is never taken for one that crashed.
+  proc.on('close', (code, signal) => {
     clearTimeout(r.heartbeat);
     clearTimeout(r.deadline);
     running.delete(job.id);

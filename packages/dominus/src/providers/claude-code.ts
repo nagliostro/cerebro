@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 
 import type {
@@ -61,8 +61,21 @@ export function toolEvent(
   const action = ACTIONS[block.name ?? ''] ?? 'other';
   const file = block.input?.file_path ?? block.input?.path;
   if (typeof file !== 'string') return { type: 'tool', action };
-  const rel = path.relative(path.resolve(cwd), path.resolve(cwd, file)).split(path.sep).join('/');
-  return { type: 'tool', action, target: rel.startsWith('..') ? undefined : rel || '.' };
+  // The folder as given and as it really is: the CLI may report either (on macOS the temporary
+  // folder is a link, /var → /private/var).
+  const real = (p: string) => {
+    try {
+      return realpathSync(p);
+    } catch {
+      return p;
+    }
+  };
+  for (const base of new Set([path.resolve(cwd), real(path.resolve(cwd))])) {
+    const rel = path.relative(base, path.resolve(base, file)).split(path.sep).join('/');
+    if (!rel.startsWith('..') && !path.isAbsolute(rel))
+      return { type: 'tool', action, target: rel || '.' };
+  }
+  return { type: 'tool', action };
 }
 
 type Options = {
