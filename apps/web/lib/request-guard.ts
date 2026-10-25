@@ -33,12 +33,39 @@ export function isSameOrigin(origin: string | null | undefined, host: string): b
 
 export type Verdict = 'allow' | 'wrong-host' | 'wrong-origin';
 
+/**
+ * The host the browser really used. Behind the remote channel (Tailscale Serve, on this same
+ * computer) a request may arrive for the loopback, naming the owner's address in
+ * X-Forwarded-Host; that address counts only if it is the one the owner turned on.
+ */
+export function publicHost(
+  host: string | null,
+  forwardedHost: string | null | undefined,
+  remote: string | null | undefined,
+): string | null {
+  const forwarded = forwardedHost?.split(',')[0]?.trim().toLowerCase();
+  if (remote && forwarded === remote && isLoopbackHost(host)) return remote;
+  return host;
+}
+
+/** The address of the Cerebro for this request: https for the remote channel. */
+export const publicOrigin = (host: string, remote: string | null | undefined) =>
+  remote && host.toLowerCase() === remote ? `https://${remote}` : `http://${host}`;
+
+/**
+ * This computer, on any port, or the owner's remote address; anything else is DNS rebinding.
+ * A change must come with an Origin of that same address (CSRF).
+ */
 export function checkRequest(req: {
   method: string;
   host: string | null;
   origin: string | null;
+  forwardedHost?: string | null;
+  remote?: string | null;
 }): Verdict {
-  if (!isLoopbackHost(req.host)) return 'wrong-host';
-  if (!isSafeMethod(req.method) && !isSameOrigin(req.origin, req.host!)) return 'wrong-origin';
+  const host = publicHost(req.host, req.forwardedHost, req.remote);
+  const remote = !!req.remote && host?.toLowerCase() === req.remote;
+  if (!isLoopbackHost(host) && !remote) return 'wrong-host';
+  if (!isSafeMethod(req.method) && !isSameOrigin(req.origin, host!)) return 'wrong-origin';
   return 'allow';
 }

@@ -43,7 +43,13 @@ export default async function NeuronPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="flex flex-1 flex-col">
-      <TopMenu items={[{ label: m.menu.memory, href: '/' }]} labels={m.menu} />
+      <TopMenu
+        items={[
+          { label: m.menu.memory, href: '/' },
+          { label: m.menu.devices, href: '/devices' },
+        ]}
+        labels={m.menu}
+      />
       <header className="mx-auto mt-5 flex w-[min(100%-32px,760px)] items-center gap-2">
         <h1 className="mr-auto flex items-center gap-2.5 text-(--cb-highlight)">
           <span

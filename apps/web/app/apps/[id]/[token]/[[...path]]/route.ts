@@ -1,7 +1,9 @@
 import { readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 
+import { publicHost, publicOrigin } from '@/lib/request-guard';
 import { appDir, validAppToken } from '@/lib/server/app-links';
+import { remoteHost } from '@/lib/server/remote';
 import { validNeuronId } from '@/lib/server/require-session';
 
 // Serves one neuron's application files, isolated: the CSP sandbox gives the document an opaque
@@ -62,8 +64,14 @@ export async function GET(
   const type = TYPES[path.extname(file).toLowerCase()];
   if (!type) return notFound();
 
-  // The proxy already checked that this host is this computer.
-  const origin = `http://${request.headers.get('host')}`;
+  // The proxy already checked that this host is this computer or the owner's remote address.
+  const remote = await remoteHost();
+  const host = publicHost(
+    request.headers.get('host'),
+    request.headers.get('x-forwarded-host'),
+    remote,
+  );
+  const origin = publicOrigin(host ?? '', remote);
   return new Response(new Uint8Array(await readFile(file)), {
     headers: {
       'content-type': type,

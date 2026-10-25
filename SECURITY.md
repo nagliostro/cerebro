@@ -20,7 +20,13 @@ Please do not open a public issue. Use GitHub's private vulnerability reporting
   gives that browser a session cookie (HttpOnly, SameSite=Strict). The server keeps only hashes
   of keys and sessions.
 - Requests whose Host is not this computer are refused (DNS rebinding), and so is any request
-  that changes something without an Origin of the Cerebro itself (CSRF).
+  that changes something without an Origin of the Cerebro itself (CSRF). The only other name let
+  in is your own Tailscale address, and only after you turn remote access on, on the computer.
+- Remote access goes through your own Tailscale network (Serve, HTTPS, only your devices; never
+  Funnel, never the open internet). A phone enters with a one-time pairing code (5 minutes) shown
+  on the computer; every device is listed with when it was last seen and can be revoked at once.
+- The installed app (PWA) keeps only an offline page on the device; your data always stays on the
+  computer.
 - Your data stays in your computer's data folder, never in the program folder or in git.
 - Each neuron's application runs isolated: a sandboxed frame with an opaque origin and a strict
   Content-Security-Policy (no cookies, no storage, no network), served by a short-lived signed link.

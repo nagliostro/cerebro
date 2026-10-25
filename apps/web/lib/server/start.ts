@@ -12,6 +12,6 @@ export async function start() {
   if (!(await ensureCore(core))) console.error('Cerebro: the Dominus core did not start');
   const portuguese = pickLocale(Intl.DateTimeFormat().resolvedOptions().locale) === 'pt-BR';
   console.log(
-    launchLine(`localhost:${process.env.PORT ?? 3000}`, await issueLaunchKey(), portuguese),
+    launchLine(`http://localhost:${process.env.PORT ?? 3000}`, await issueLaunchKey(), portuguese),
   );
 }

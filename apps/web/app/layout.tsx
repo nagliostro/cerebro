@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Geist_Mono } from 'next/font/google';
 import { headers } from 'next/headers';
 
+import { ServiceWorker } from '@/components/service-worker';
 import { Starfield } from '@/components/starfield';
 import { pickLocale, t } from '@/lib/i18n';
 
@@ -12,7 +13,13 @@ const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin']
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = pickLocale((await headers()).get('accept-language'));
-  return { title: 'Cerebro', description: t(locale).description };
+  return {
+    title: 'Cerebro',
+    description: t(locale).description,
+    // Installed on a phone, it opens full screen, with its own icon.
+    appleWebApp: { capable: true, title: 'Cerebro', statusBarStyle: 'black-translucent' },
+    icons: { apple: '/pwa/apple-touch-icon.png' },
+  };
 }
 
 export const viewport: Viewport = {
@@ -26,6 +33,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     <html lang={locale}>
       <body className={`${geistMono.variable} flex h-dvh flex-col overflow-hidden`}>
         <Starfield />
+        <ServiceWorker />
         {children}
       </body>
     </html>

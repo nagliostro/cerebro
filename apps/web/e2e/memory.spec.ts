@@ -41,17 +41,17 @@ test('dragging a neuron moves only that one, and it stays there', async ({ page 
   expect(Math.hypot(a2.x - a1.x, a2.y - a1.y)).toBeLessThan(2);
 });
 
-// On the empty sky at the top: the foot has the Dominus box.
+// On the empty sky at the left edge: the top has the menu, the foot the Dominus box.
 test('dragging the sky turns everything; a double click goes back', async ({ page }) => {
   const a0 = await center(page, /^Finanças/);
   const vp = page.viewportSize()!;
-  await page.mouse.move(vp.width / 2 + 5, 60);
+  await page.mouse.move(20, vp.height / 3);
   await page.mouse.down();
-  await page.mouse.move(vp.width / 2 + 160, 60, { steps: 8 });
+  await page.mouse.move(180, vp.height / 3, { steps: 8 });
   await page.mouse.up();
   const a1 = await center(page, /^Finanças/);
   expect(Math.hypot(a1.x - a0.x, a1.y - a0.y)).toBeGreaterThan(10);
-  await page.mouse.dblclick(vp.width / 2 + 5, 60);
+  await page.mouse.dblclick(20, vp.height / 3);
   const a2 = await center(page, /^Finanças/);
   expect(Math.hypot(a2.x - a0.x, a2.y - a0.y)).toBeLessThan(2);
 });

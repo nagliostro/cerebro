@@ -6,7 +6,7 @@ O ajudante do seu cérebro: as áreas e os objetivos da sua vida, conectados. Ca
 **neurônio**, uma aplicação própria; o **Dominus**, no centro, conversa com você e com a IA que
 você já usa.
 
-> Em construção, por fases. Hoje (fase 7) há a Memória: o Dominus no centro e os neurônios em 3D
+> Em construção, por fases. Hoje (fase 8) há a Memória: o Dominus no centro e os neurônios em 3D
 > em volta, só para quem iniciou o Cerebro. Peça um neurônio ao Dominus: ele planeja (com o custo
 > antes), você aceita e ele constrói a aplicação, isolada. Os neurônios conversam só pelo contrato,
 > com a sua permissão. O núcleo fala com a sua IA (Claude Code, ou qualquer API no formato da
@@ -31,6 +31,14 @@ ele vale uma vez, por 15 minutos, e deixa aquele navegador conectado. Para outro
 http://localhost:3000 nele e use o novo link que aparece no terminal. Seus dados ficam na pasta de dados do sistema (no Windows,
 `%APPDATA%\Cerebro`), fora da pasta do programa: atualizar ou reinstalar não apaga nada.
 
+## No celular
+
+O Cerebro abre no celular pela sua própria rede do [Tailscale](https://tailscale.com/download)
+(grátis para uso pessoal): nada fica aberto na internet. Instale o Tailscale neste computador e
+no celular, entre com a mesma conta nos dois e, no Cerebro, abra **Aparelhos** → **Ligar o
+acesso remoto** → **Parear um celular**. A câmera do celular lê o código e ele entra; para usar
+como aplicativo, adicione à tela de início. Em Aparelhos você vê e revoga cada um.
+
 ## Desenvolver
 
 `pnpm dev` (http://localhost:3000), `pnpm lint`, `pnpm typecheck`, `pnpm test`,
@@ -49,11 +57,15 @@ Your brain's helper: the areas and goals of your life, connected. Each area beco
 **neuron**, an application of its own; the **Dominus**, at the center, talks to you and to the
 AI you already use.
 
-> Under construction, in phases. Today (phase 7) there is the Memória: the Dominus at the center and
+> Under construction, in phases. Today (phase 8) there is the Memória: the Dominus at the center and
 > the neurons in 3D around it, only for whoever started the Cerebro. Ask the Dominus for a neuron:
 > it plans (with the cost up front), you accept and it builds the application, isolated. Neurons
 > talk only through the contract, with your permission. The core talks to your AI (Claude Code, or
 > any API in the OpenAI format), measures the quota and keeps the graph.
+
+**Phone:** install [Tailscale](https://tailscale.com/download) on this computer and on the
+phone (same account), then in the Cerebro open **Devices** → **Turn on remote access** → **Pair a
+phone** and scan the code. Nothing is opened to the internet.
 
 **Install:** Node.js 24+ and pnpm, then `pnpm install`, `pnpm build`, `pnpm start` and open
 the link the terminal shows (it works once, for 15 minutes; another browser gets a new link). Your data lives in the system's data folder, outside the program folder.

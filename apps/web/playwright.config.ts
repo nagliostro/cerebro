@@ -58,6 +58,8 @@ export default defineConfig({
       CEREBRO_DATA_DIR: E2E_DATA_DIR,
       CEREBRO_CLAUDE_BIN: path.join(E2E_DATA_DIR, 'no-claude'),
       CEREBRO_SIMULATED: '1',
+      // A fake Tailscale, signed in, so the remote channel and pairing can be tested anywhere.
+      CEREBRO_TAILSCALE_BIN: path.resolve('e2e/fake-tailscale.mjs'),
       CEREBRO_SIM_STEP_MS: '700',
     },
     reuseExistingServer: false,
@@ -69,7 +71,7 @@ export default defineConfig({
       widths.map((w) => ({
         name: `${engine}-${w.name}`,
         dependencies: ['setup'],
-        testIgnore: /build\.spec\.ts/,
+        testIgnore: /(build|devices)\.spec\.ts/,
         use: {
           ...engines[engine],
           viewport: w.viewport,
@@ -81,8 +83,9 @@ export default defineConfig({
         retries: engine === 'firefox' ? 1 : 0,
       })),
     ),
-    // Building neurons changes the graph the other screens count: it runs after all of them, in
-    // one engine, on a phone and then on a desktop (one owner has one open plan at a time).
+    // Building neurons and pairing devices change what the other screens count: they run after
+    // all of them, in one engine, on a phone and then on a desktop (one owner has one open plan
+    // at a time, and one remote channel).
     ...widths
       .filter((w) => w.name !== 'tablet')
       .map((w, i) => ({
@@ -90,7 +93,7 @@ export default defineConfig({
         dependencies: i
           ? ['build-phone']
           : chosen.flatMap((engine) => widths.map((x) => `${engine}-${x.name}`)),
-        testMatch: /build\.spec\.ts/,
+        testMatch: /(build|devices)\.spec\.ts/,
         use: {
           ...engines.chromium,
           viewport: w.viewport,

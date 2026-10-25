@@ -33,6 +33,24 @@ test.describe('without a session', () => {
     expect((await request.get('/api/anything')).status()).toBe(401);
   });
 
+  test('only what a phone needs to install the Cerebro opens without a session', async ({
+    request,
+  }) => {
+    const manifest = await request.get('/manifest.webmanifest');
+    expect(manifest.status()).toBe(200);
+    expect(await manifest.json()).toMatchObject({ name: 'Cerebro', display: 'standalone' });
+    for (const path of [
+      '/sw.js',
+      '/offline.html',
+      '/pwa/icon-192.png',
+      '/pwa/apple-touch-icon.png',
+    ])
+      expect((await request.get(path)).status(), path).toBe(200);
+    for (const path of ['/api/devices', '/api/pair', '/api/remote'])
+      expect((await request.get(path)).status(), path).toBe(401);
+    expect((await request.get('/devices', { maxRedirects: 0 })).status()).toBe(307);
+  });
+
   test('a key works once and never stays in the address bar', async ({ page, browser }) => {
     const key = await issueLaunchKey();
     await page.goto(`/?key=${key}`);
