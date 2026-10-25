@@ -2,9 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { NeuronDot } from './neuron-dot';
-
-export const DOMINUS_COLOR = 'oklch(0.92 0.015 250)';
+import { DOMINUS_COLOR, NeuronDot } from './neuron-dot';
 
 /**
  * The Dominus at the center of the empty screen. Touching it shows what is true right now:

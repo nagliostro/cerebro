@@ -1,4 +1,7 @@
+export const DOMINUS_COLOR = 'oklch(0.92 0.015 250)';
+
 // A neuron: a point of light, each in its own color. The Dominus is the silver-white one.
+// Without onClick it is only a picture (nothing on the screen looks touchable for nothing).
 export function NeuronDot({
   color,
   label,
@@ -12,14 +15,15 @@ export function NeuronDot({
   controls?: string;
   onClick?: () => void;
 }) {
+  const Tag = onClick ? 'button' : 'span';
+  const role = onClick
+    ? { type: 'button' as const, 'aria-expanded': expanded, 'aria-controls': controls, onClick }
+    : { role: 'img' };
   return (
-    <button
-      type="button"
+    <Tag
+      {...role}
       aria-label={label}
-      aria-expanded={expanded}
-      aria-controls={controls}
-      onClick={onClick}
-      className="group relative grid size-16 cursor-pointer place-items-center rounded-full outline-none"
+      className={`group relative grid size-16 place-items-center rounded-full outline-none ${onClick ? 'cursor-pointer' : ''}`}
       style={{ '--dot': color } as React.CSSProperties}
     >
       {/* A halo that breathes slowly */}
@@ -37,12 +41,14 @@ export function NeuronDot({
         style={{ background: 'var(--dot)', boxShadow: '0 0 12px var(--dot)' }}
       />
       {/* Only the text, no frame; shows on hover and keyboard focus */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute bottom-full mb-1 translate-y-1 whitespace-nowrap text-(--cb-highlight) opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100"
-      >
-        {label}
-      </span>
-    </button>
+      {onClick && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute bottom-full mb-1 translate-y-1 whitespace-nowrap text-(--cb-highlight) opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100"
+        >
+          {label}
+        </span>
+      )}
+    </Tag>
   );
 }

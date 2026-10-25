@@ -1,6 +1,15 @@
+import os from 'node:os';
+import path from 'node:path';
+
 import { defineConfig, devices } from '@playwright/test';
 
 const PORT = 3100;
+// Its own data folder, so the tests never touch the owner's sessions. The tests read it too, to
+// sign in the way the owner does (see e2e/sign-in.ts).
+export const E2E_DATA_DIR = path.join(os.tmpdir(), `cerebro-e2e-${PORT}`);
+process.env.CEREBRO_DATA_DIR = E2E_DATA_DIR;
+// The session the setup project leaves for every test (cookies of a signed-in browser).
+export const SIGNED_IN = path.join(E2E_DATA_DIR, 'signed-in.json');
 
 // Runs the built app (next start) on its own port: the same thing a clean install runs.
 // Three engines at the three widths of the design (390, 820, 1440). CI can narrow the
@@ -29,21 +38,38 @@ export default defineConfig({
   reporter: process.env.CI ? [['list'], ['github']] : 'list',
   // Never hang a run: the whole suite has 10 minutes.
   globalTimeout: 10 * 60_000,
-  use: { baseURL: `http://localhost:${PORT}` },
+  use: { baseURL: `http://127.0.0.1:${PORT}` },
   webServer: {
     // Next directly, not through pnpm: on Linux and macOS the pnpm wrapper kept the server alive
     // after the tests and the run never ended.
-    command: `node node_modules/next/dist/bin/next start -p ${PORT}`,
-    url: `http://localhost:${PORT}`,
+    command: `node node_modules/next/dist/bin/next start -H 127.0.0.1 -p ${PORT}`,
+    // The locked screen answers too, so the server is ready when any page answers.
+    url: `http://127.0.0.1:${PORT}/locked`,
+    // No AI on purpose (a Claude Code that does not exist), so the screens look the same on
+    // every computer.
+    env: {
+      CEREBRO_DATA_DIR: E2E_DATA_DIR,
+      CEREBRO_CLAUDE_BIN: path.join(E2E_DATA_DIR, 'no-claude'),
+    },
     reuseExistingServer: false,
   },
-  projects: chosen.flatMap((engine) =>
-    widths.map((w) => ({
-      name: `${engine}-${w.name}`,
-      use: { ...engines[engine], viewport: w.viewport, hasTouch: w.hasTouch },
-      // Firefox on Windows sometimes hangs opening a page when several run at once; one retry,
-      // and the report marks the test as flaky instead of hiding it.
-      retries: engine === 'firefox' ? 1 : 0,
-    })),
-  ),
+  projects: [
+    // Signs in once, the way the owner does, before any screen test.
+    { name: 'setup', testMatch: /sign-in\.setup\.ts/ },
+    ...chosen.flatMap((engine) =>
+      widths.map((w) => ({
+        name: `${engine}-${w.name}`,
+        dependencies: ['setup'],
+        use: {
+          ...engines[engine],
+          viewport: w.viewport,
+          hasTouch: w.hasTouch,
+          storageState: SIGNED_IN,
+        },
+        // Firefox on Windows sometimes hangs opening a page when several run at once; one retry,
+        // and the report marks the test as flaky instead of hiding it.
+        retries: engine === 'firefox' ? 1 : 0,
+      })),
+    ),
+  ],
 });

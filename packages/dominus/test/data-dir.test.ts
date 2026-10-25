@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { dataDir } from './data-dir';
+import { dataDir } from '../src/data-dir.ts';
 
 const win = String.raw;
 

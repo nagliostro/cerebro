@@ -1,7 +1,9 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
-// The empty screen: only the Dominus, nothing scrolls sideways, and it passes WCAG 2.2 AA.
+import { SIGNED_IN } from '../playwright.config';
+
+// The empty screen of a signed-in browser: only the Dominus, nothing scrolls sideways, and it passes WCAG 2.2 AA.
 
 test.describe('empty screen', () => {
   test.use({ locale: 'pt-BR', extraHTTPHeaders: { 'Accept-Language': 'pt-BR,pt;q=0.9' } });
@@ -22,6 +24,8 @@ test.describe('empty screen', () => {
     await expect(status).toContainText('Cerebro 0.1.0');
     await expect(status).toContainText('Seus dados ficam em');
     await expect(status).toContainText('Nenhuma IA conectada ainda');
+    // The Dominus core answered: it checked the (absent, in the tests) Claude Code.
+    await expect(status).toContainText('Claude Code não está instalado neste computador');
 
     await page.keyboard.press('Escape');
     await expect(status).toBeHidden();
@@ -56,6 +60,7 @@ test.describe('empty screen', () => {
 
 test('English when the browser does not speak Portuguese', async ({ browser }) => {
   const context = await browser.newContext({
+    storageState: SIGNED_IN,
     locale: 'de-DE',
     extraHTTPHeaders: { 'Accept-Language': 'de-DE,de;q=0.9' },
   });

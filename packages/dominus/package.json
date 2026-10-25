@@ -1,0 +1,28 @@
+{
+  "name": "@cerebro/dominus",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./client": "./src/client.ts",
+    "./data-dir": "./src/data-dir.ts",
+    "./types": "./src/providers/types.ts",
+    "./vault": "./src/vault.ts"
+  },
+  "scripts": {
+    "core": "node src/core.ts",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@napi-rs/keyring": "2.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "eslint": "^9.39.5",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^5.0.5"
+  }
+}
