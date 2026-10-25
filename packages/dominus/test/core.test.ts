@@ -185,6 +185,26 @@ describe('dominus core', () => {
     expect(verdict).toMatchObject({ costUsd: null, verdict: 'unknown' });
   });
 
+  it('keeps the graph: neurons, conversations and links, with bad input refused', async () => {
+    expect(await call('GET', '/graph')).toEqual({ neurons: [], synapses: [], links: [] });
+    const { id } = await call<{ id: string }>('POST', '/graph/neurons', { name: 'Finanças' });
+    await call('POST', '/graph/neurons', { name: 'Pesquisa', role: 'craft' });
+    await call('POST', '/graph/conversations', { a: id, b: 'dominus' });
+    await call('POST', '/graph/links', { reader: id, target: 'pesquisa' });
+    const view = await call<{ neurons: { id: string; weight: number; role: string }[] }>(
+      'GET',
+      '/graph',
+    );
+    expect(view.neurons).toMatchObject([
+      { id: 'financas', weight: 1, role: 'life' },
+      { id: 'pesquisa', weight: 0, role: 'craft' },
+    ]);
+    await expect(call('POST', '/graph/neurons', { name: '' })).rejects.toThrow(/400/);
+    await expect(call('POST', '/graph/conversations', { a: id, b: 'ghost' })).rejects.toThrow(
+      /400/,
+    );
+  });
+
   it('uses less than 150 MB when idle', async () => {
     await waitFor(async () => (await call<{ running: number }>('GET', '/stats')).running === 0);
     const { rssMb } = await call<{ rssMb: number }>('GET', '/stats');

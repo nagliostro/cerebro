@@ -3,19 +3,23 @@ import { expect, test } from '@playwright/test';
 
 import { SIGNED_IN } from '../playwright.config';
 
-// The empty screen of a signed-in browser: only the Dominus, nothing scrolls sideways, and it passes WCAG 2.2 AA.
+// The Memória of a signed-in browser (with the sample graph of sign-in.setup.ts): the Dominus at
+// the center and the neurons around it, nothing scrolls sideways, and it passes WCAG 2.2 AA.
 
-test.describe('empty screen', () => {
+test.describe('memória', () => {
   test.use({ locale: 'pt-BR', extraHTTPHeaders: { 'Accept-Language': 'pt-BR,pt;q=0.9' } });
 
-  test('shows only the Dominus, which reveals the status on touch', async ({ page }) => {
+  test('shows the Dominus and the neurons; the Dominus reveals the status on touch', async ({
+    page,
+  }) => {
     await page.goto('/');
     await expect(page).toHaveTitle('Cerebro');
     await expect(page.locator('html')).toHaveAttribute('lang', 'pt-BR');
 
     const dominus = page.getByRole('button', { name: 'Dominus' });
     await expect(dominus).toBeVisible();
-    await expect(page.getByRole('button')).toHaveCount(1);
+    // The Dominus and the four neurons, nothing else to touch.
+    await expect(page.getByRole('button')).toHaveCount(5);
 
     const status = page.locator('#dominus-status');
     await expect(status).toBeHidden();
@@ -26,6 +30,7 @@ test.describe('empty screen', () => {
     await expect(status).toContainText('Nenhuma IA conectada ainda');
     // The Dominus core answered: it checked the (absent, in the tests) Claude Code.
     await expect(status).toContainText('Claude Code não está instalado neste computador');
+    await expect(status).toContainText('4 neurônios · 1 de ofício');
 
     await page.keyboard.press('Escape');
     await expect(status).toBeHidden();

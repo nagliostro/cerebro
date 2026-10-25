@@ -23,6 +23,14 @@ const messages = {
     window: { session: 'sessão', day: 'dia', week: 'semana', month: 'mês', balance: 'saldo' },
     pace: (pct: string) => `ritmo ${pct}`,
     stale: 'leitura antiga',
+    weight: (w: string) => `peso ${w}`,
+    role: { life: 'Neurônio de vida', craft: 'Neurônio de ofício: sabe construir' },
+    noTalks: 'Ainda sem conversas com os outros',
+    neuronCount: (all: number, craft: number) =>
+      all === 0
+        ? 'Nenhum neurônio ainda'
+        : `${all} ${all === 1 ? 'neurônio' : 'neurônios'}${craft ? ` · ${craft} de ofício` : ''}`,
+    number: (x: number) => x.toLocaleString('pt-BR'),
     locked: 'Para entrar, abra o link que apareceu no terminal onde o Cerebro foi iniciado.',
   },
   en: {
@@ -44,6 +52,14 @@ const messages = {
     window: { session: 'session', day: 'day', week: 'week', month: 'month', balance: 'balance' },
     pace: (pct: string) => `pace ${pct}`,
     stale: 'old reading',
+    weight: (w: string) => `weight ${w}`,
+    role: { life: 'Life neuron', craft: 'Craft neuron: knows how to build' },
+    noTalks: 'No conversations with the others yet',
+    neuronCount: (all: number, craft: number) =>
+      all === 0
+        ? 'No neurons yet'
+        : `${all} ${all === 1 ? 'neuron' : 'neurons'}${craft ? ` · ${craft} craft` : ''}`,
+    number: (x: number) => x.toLocaleString('en'),
     locked: 'To enter, open the link shown in the terminal where the Cerebro was started.',
   },
 } satisfies Record<Locale, Record<string, unknown>>;

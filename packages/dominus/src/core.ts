@@ -8,6 +8,7 @@ import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 
 import { clockState, nowMs, setOffset, syncClock } from './clock.ts';
+import { Graph, GraphError } from './graph.ts';
 import { corePaths } from './paths.ts';
 import { loadProviders } from './providers/index.ts';
 import type { AiProvider, AskMode, HealthCheck, ModelRole } from './providers/types.ts';
@@ -49,6 +50,7 @@ function loadToken(): string {
 const token = Buffer.from(loadToken());
 
 const queue = new Queue(paths.db);
+const graph = new Graph(paths.db);
 const bus = new EventEmitter();
 bus.setMaxListeners(50);
 const lag = monitorEventLoopDelay({ resolution: 10 });
@@ -374,6 +376,21 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     const cost = typeof b.costUsd === 'number' && b.costUsd > 0 ? b.costUsd : buildEstimate(past);
     return json(200, { costUsd: cost, ...guard(cost, quota(p), nowMs()) });
   }
+  // The graph: what the Memória draws, and the few changes the rest of the Cerebro makes to it.
+  if (req.method === 'GET' && url.pathname === '/graph') return json(200, graph.view());
+  if (req.method === 'POST' && url.pathname.startsWith('/graph/')) {
+    const b = (await readBody(req)) as Record<string, unknown>;
+    const text = (v: unknown) => (typeof v === 'string' ? v : '');
+    let result: unknown = { ok: true };
+    if (url.pathname === '/graph/neurons')
+      result = { id: graph.addNeuron({ name: b.name, role: b.role, hue: b.hue }) };
+    else if (url.pathname === '/graph/conversations')
+      graph.recordConversation(text(b.a), text(b.b));
+    else if (url.pathname === '/graph/links') graph.addLink(text(b.reader), text(b.target));
+    else return json(404, { error: 'not found' });
+    emit('graph.changed', {});
+    return json(201, result);
+  }
   if (req.method === 'GET' && url.pathname === '/events') {
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
     const listener = (e: object) => res.write(`data: ${JSON.stringify(e)}\n\n`);
@@ -386,7 +403,7 @@ async function route(req: IncomingMessage, res: ServerResponse) {
 
 const server = createServer((req, res) => {
   route(req, res).catch((e) => {
-    const bad = e instanceof BadRequest;
+    const bad = e instanceof BadRequest || e instanceof GraphError;
     if (!bad) console.error('dominus core:', e);
     if (!res.headersSent) res.writeHead(bad ? 400 : 500, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ error: bad ? e.message : 'internal error' }));
@@ -397,6 +414,7 @@ function shutdown() {
   for (const r of running.values()) r.proc.kill('SIGKILL');
   server.close();
   queue.close();
+  graph.close();
   process.exit(0);
 }
 process.on('SIGINT', shutdown);
