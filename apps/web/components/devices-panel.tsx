@@ -155,7 +155,8 @@ export function DevicesPanel({
   const serving = channel?.state === 'serving';
 
   return (
-    <main className="mx-auto mt-10 mb-20 w-[min(100%-32px,560px)]">
+    // A section of Settings (its page holds the <main>).
+    <div className="max-w-[560px]">
       {paired && (
         <section
           aria-label={m.welcome}
@@ -328,6 +329,6 @@ export function DevicesPanel({
           </div>
         )}
       </section>
-    </main>
+    </div>
   );
 }

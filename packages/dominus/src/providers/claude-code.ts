@@ -2,9 +2,11 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 
+import { researchEvent } from '../research/events.ts';
 import type {
   AiProvider,
   AskEvent,
+  AskRequest,
   AskResult,
   HealthCheck,
   QuotaWindow,
@@ -43,6 +45,50 @@ const FILE_FLAGS = [
   '',
   '--disable-slash-commands',
 ];
+// Research: none of the CLI's own tools (no files, commands or its web tools), only the Cerebro's
+// research server, where every page goes through the guard. Anything else would need a person to
+// approve, and with --permission-prompts none it is refused at once.
+const RESEARCH_SERVER = path.join(import.meta.dirname, '..', 'research', 'mcp-server.ts');
+const MCP_PREFIX = 'mcp__cerebro__';
+function researchFlags(cwd: string, req: AskRequest): string[] {
+  const env: Record<string, string> = {};
+  // Only the tests set it (their own local pages); passed on so the server sees the same.
+  if (process.env.CEREBRO_BROWSER_ALLOW)
+    env.CEREBRO_BROWSER_ALLOW = process.env.CEREBRO_BROWSER_ALLOW;
+  const config = {
+    mcpServers: {
+      cerebro: {
+        type: 'stdio',
+        command: process.execPath,
+        args: [
+          RESEARCH_SERVER,
+          '--dir',
+          path.resolve(cwd),
+          '--locale',
+          req.locale ?? 'en',
+          '--max-pages',
+          String(req.maxPages ?? 25),
+        ],
+        env,
+      },
+    },
+  };
+  return [
+    '--tools',
+    '',
+    '--strict-mcp-config',
+    '--mcp-config',
+    JSON.stringify(config),
+    '--allowedTools',
+    'mcp__cerebro',
+    '--permission-prompts',
+    'none',
+    '--setting-sources',
+    '',
+    '--disable-slash-commands',
+  ];
+}
+
 const ACTIONS: Record<string, ToolAction> = {
   Read: 'read',
   Write: 'write',
@@ -58,6 +104,14 @@ export function toolEvent(
   block: { name?: string; input?: { file_path?: unknown; path?: unknown } },
   cwd: string,
 ): AskEvent {
+  if (block.name?.startsWith(MCP_PREFIX))
+    return {
+      type: 'tool',
+      ...researchEvent(
+        block.name.slice(MCP_PREFIX.length),
+        (block.input ?? {}) as Record<string, unknown>,
+      ),
+    };
   const action = ACTIONS[block.name ?? ''] ?? 'other';
   const file = block.input?.file_path ?? block.input?.path;
   if (typeof file !== 'string') return { type: 'tool', action };
@@ -171,6 +225,7 @@ export function claudeCode(opts: Options): AiProvider {
         if (text) args.push(...TEXT_FLAGS, '--system-prompt', req.system ?? 'Answer briefly.');
         else {
           if (req.access === 'files') args.push(...FILE_FLAGS);
+          if (req.access === 'research' && req.cwd) args.push(...researchFlags(req.cwd, req));
           if (req.system) args.push('--append-system-prompt', req.system);
         }
         if (req.effort) args.push('--effort', req.effort);

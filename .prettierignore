@@ -2,3 +2,4 @@ pnpm-lock.yaml
 .next/
 LICENSE
 apps/web/public/neuron-kit/icons.js
+apps/web/public/neuron-kit/lib/

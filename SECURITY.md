@@ -17,8 +17,9 @@ Please do not open a public issue. Use GitHub's private vulnerability reporting
 
 - The server listens only on `127.0.0.1`.
 - Only whoever started the Cerebro gets in: the terminal shows a one-time link (15 minutes) that
-  gives that browser a session cookie (HttpOnly, SameSite=Strict). The server keeps only hashes
-  of keys and sessions.
+  gives that browser a session cookie (HttpOnly, SameSite=Lax, as GitHub and Google use, so a
+  link from another app still opens the Cerebro). The server keeps only hashes of keys and
+  sessions.
 - Requests whose Host is not this computer are refused (DNS rebinding), and so is any request
   that changes something without an Origin of the Cerebro itself (CSRF). The only other name let
   in is your own Tailscale address, and only after you turn remote access on, on the computer.
@@ -30,12 +31,24 @@ Please do not open a public issue. Use GitHub's private vulnerability reporting
 - Your data stays in your computer's data folder, never in the program folder or in git.
 - Each neuron's application runs isolated: a sandboxed frame with an opaque origin and a strict
   Content-Security-Policy (no cookies, no storage, no network), served by a short-lived signed link.
+  It may only hand you files it made itself (downloads), and use the libraries of the kit.
   It talks to the Cerebro only through a message bridge that reaches its own data and, through the
   contract, only what you allowed other neurons to share. Only you change permissions.
 - Building a neuron gives the AI files only: it works in a draft folder of its own, with file
   tools and nothing else (no commands, no internet, none of your own settings). The draft becomes
   the neuron's application only after the Cerebro checks it (an `index.html`, only the kinds of
   file it serves, no links, size limits); a failed or stopped build leaves nothing.
+- Researching a feature to copy, the AI has only the research tools: the Navegador and the tools
+  that record what it found. No files, no commands. The Navegador is the Edge or Chrome already on
+  the computer, with no window and a new, empty profile each time (none of your accounts, cookies
+  or passwords), no downloads and no service workers. Every connection it makes goes through a
+  proxy of the Cerebro that resolves each name itself and connects only to public addresses:
+  this computer, the home network, cloud metadata and the tailnet are refused, also after a
+  redirect and against DNS rebinding. What pages say reaches the AI marked as third-party
+  content, never as instructions. Each research has a page limit, and the sites it opened are
+  shown in the plan.
+- A copy's answer key runs in a page with no network at all; the expected values come from the
+  research, never from the code being checked.
 - API keys go to the system's credential store (Windows Credential Manager, macOS Keychain,
   Secret Service on Linux), never to the browser or to plain files. Without a store, nothing is
   saved.

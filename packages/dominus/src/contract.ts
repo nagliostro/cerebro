@@ -217,4 +217,10 @@ export class Contracts {
   revokeAll(target: string) {
     this.db.prepare(`DELETE FROM permissions WHERE target = ?`).run(target);
   }
+
+  /** A neuron removed: its data, and every permission to it and from it. */
+  forget(neuron: string) {
+    this.db.prepare(`DELETE FROM records WHERE neuron = ?`).run(neuron);
+    this.db.prepare(`DELETE FROM permissions WHERE target = ? OR caller = ?`).run(neuron, neuron);
+  }
 }

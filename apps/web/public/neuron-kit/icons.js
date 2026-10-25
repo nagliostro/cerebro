@@ -15,6 +15,8 @@
       for (const k in attrs) el.setAttribute(k, attrs[k]);
       svg.append(el);
     }
+    // Also works pasted inside an HTML string, the way builders often write it.
+    svg.toString = () => svg.outerHTML;
     return svg;
   }
   const draw = (root) => {

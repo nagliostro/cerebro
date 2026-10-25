@@ -139,6 +139,28 @@ export class Graph {
     return id;
   }
 
+  /** A neuron's name or role, as the owner changes them in Settings. */
+  updateNeuron(id: string, input: { name?: unknown; role?: unknown }) {
+    if (!this.neuron(id)) throw new GraphError('unknown neuron');
+    if (input.name !== undefined) {
+      const name = typeof input.name === 'string' ? input.name.trim() : '';
+      if (!name || name.length > 40) throw new GraphError('invalid name');
+      this.db.prepare(`UPDATE neurons SET name = ? WHERE id = ?`).run(name, id);
+    }
+    if (input.role !== undefined) {
+      if (input.role !== 'life' && input.role !== 'craft') throw new GraphError('invalid role');
+      this.db.prepare(`UPDATE neurons SET role = ? WHERE id = ?`).run(input.role, id);
+    }
+  }
+
+  /** A neuron is gone for good: it, its conversations and its links. */
+  removeNeuron(id: string) {
+    if (id === DOMINUS_ID) throw new GraphError('the Dominus stays');
+    this.db.prepare(`DELETE FROM neurons WHERE id = ?`).run(id);
+    this.db.prepare(`DELETE FROM conversations WHERE a = ? OR b = ?`).run(id, id);
+    this.db.prepare(`DELETE FROM links WHERE reader = ? OR target = ?`).run(id, id);
+  }
+
   /** The hue the next neuron gets: the allowed one farthest from those in use. */
   suggestHue(): number {
     const used = (this.db.prepare(`SELECT color FROM neurons`).all() as { color: string }[])

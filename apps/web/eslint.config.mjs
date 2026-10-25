@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     'next-env.d.ts',
     'playwright-report/**',
     'test-results/**',
+    // Libraries of the neuron kit, copied as their authors publish them (scripts/kit-libs.mjs).
+    'public/neuron-kit/lib/**',
   ]),
 ]);
 

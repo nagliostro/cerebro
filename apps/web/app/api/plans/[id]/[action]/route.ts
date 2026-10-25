@@ -15,8 +15,11 @@ export async function POST(
   const { id, action } = await params;
   if (!validPlanId(id) || !ACTIONS.has(action))
     return Response.json({ error: 'not found' }, { status: 404 });
-  const b = (await request.json().catch(() => ({}))) as { text?: unknown };
-  return fromCore(() =>
-    coreRequest('POST', `/plans/${id}/${action}`, action === 'answer' ? { text: b.text } : {}),
-  );
+  const b = (await request.json().catch(() => ({}))) as { text?: unknown; improvements?: unknown };
+  // Accepting a copy: the improvements the owner ticked, by their order in the research.
+  const improvements = Array.isArray(b.improvements)
+    ? b.improvements.filter((i) => Number.isInteger(i)).slice(0, 10)
+    : [];
+  const body = action === 'answer' ? { text: b.text } : action === 'accept' ? { improvements } : {};
+  return fromCore(() => coreRequest('POST', `/plans/${id}/${action}`, body));
 }

@@ -49,14 +49,21 @@ export type AskRequest = {
   /**
    * Agent mode, files only: it may read and write files inside cwd and nothing else (no commands,
    * no internet, no files outside). What building a neuron uses.
+   * research: only the research tools (the Navegador on public sites, and recording what it
+   * found in cwd); no files, no commands. What researching before a plan uses.
    */
-  access?: 'files';
+  access?: 'files' | 'research';
+  /** Research: navigations allowed, by the depth. */
+  maxPages?: number;
+  /** Research: the language the browser announces. */
+  locale?: string;
   /** Continue this conversation (only if capabilities.sessions). */
   sessionId?: string;
   signal?: AbortSignal;
 };
 
-export type ToolAction = 'read' | 'write' | 'search' | 'other';
+/** browse: a page opened or used; record: a finding of a research saved (its kind in target). */
+export type ToolAction = 'read' | 'write' | 'search' | 'browse' | 'record' | 'other';
 
 /** Progress while the AI works, in Dominus terms. */
 export type AskEvent =

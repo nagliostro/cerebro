@@ -11,13 +11,15 @@ const REMOTE = 'cerebro-e2e.tail-example.ts.net';
 const IPHONE =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
 
-test('the menu leads to the devices; this one is listed, and it passes WCAG 2.2 AA', async ({
+test('the menu leads to the devices, in Settings; this one is listed, and it passes WCAG 2.2 AA', async ({
   page,
 }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Abrir menu' }).click();
+  await page.getByRole('link', { name: 'Configurações' }).click();
+  await expect(page).toHaveURL('/settings');
   await page.getByRole('link', { name: 'Aparelhos' }).click();
-  await expect(page).toHaveURL('/devices');
+  await expect(page).toHaveURL('/settings/devices');
   await expect(page.getByRole('heading', { name: 'Aparelhos', level: 1 })).toBeVisible();
   await expect(page.getByRole('listitem').filter({ hasText: 'este' })).toHaveCount(1);
   const remote = page.getByRole('region', { name: 'Acesso de fora de casa' });
@@ -32,7 +34,9 @@ test('remote access on; a phone pairs once by its code, and is revoked', async (
   request,
 }, info) => {
   test.skip(info.project.name !== 'build-desktop', 'one remote channel');
+  // The old address still leads there.
   await page.goto('/devices');
+  await expect(page).toHaveURL('/settings/devices');
   const remote = page.getByRole('region', { name: 'Acesso de fora de casa' });
   await expect(remote).toContainText(`Tailscale pronto neste computador (${REMOTE}).`);
   await expect(page.getByRole('button', { name: 'Parear um celular' })).toHaveCount(0);
@@ -63,7 +67,7 @@ test('remote access on; a phone pairs once by its code, and is revoked', async (
   });
   const p = await phone.newPage();
   await p.goto(`/?pair=${key}`);
-  await expect(p).toHaveURL('/devices?paired=1');
+  await expect(p).toHaveURL('/settings/devices?paired=1');
   await expect(p.getByRole('region', { name: 'Este aparelho entrou no Cerebro' })).toContainText(
     'Compartilhar e depois em Adicionar à Tela de Início',
   );

@@ -84,6 +84,20 @@ test('a plan can be rejected, and a build stopped: nothing is created', async ({
   await expect(box).toHaveValue('');
 });
 
+test('two screens of the owner follow the same plan at once', async ({ page, context }) => {
+  // The computer and the phone: what one asks, builds or stops, the other shows without a reload.
+  const other = await context.newPage();
+  await page.goto('/');
+  await other.goto('/');
+  await ask(page, 'Diário: as notas do dia');
+  await expect(plan(other)).toContainText('Diário');
+  await plan(other).getByRole('button', { name: 'Construir' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Construindo' })).toBeVisible();
+  await page.getByRole('button', { name: 'Parar' }).click();
+  await expect(other.getByText('Construção cancelada. Nada foi criado.')).toBeVisible();
+  await other.close();
+});
+
 test('a neuron without an application gets its first one from its own screen', async ({
   page,
 }, info) => {
@@ -123,6 +137,49 @@ test('when an existing neuron already does it, the plan offers to adjust that on
   await expect(plan(page).getByRole('button', { name: 'Ajustar' })).toBeVisible();
   await plan(page).getByRole('button', { name: 'Rejeitar' }).click();
   await expect(plan(page)).toBeHidden();
+});
+
+test('a copy is researched: the answer key, rules with their sources, then checked when built', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'build-desktop', 'one copy, one build');
+  await page.goto('/');
+  await ask(page, 'copie o simulador de https://invest.example.com/sim');
+  await expect(plan(page)).toContainText('Gabarito · 2 casos', { timeout: 20_000 });
+  await expect(plan(page)).toContainText('2 observados no original');
+  await expect(plan(page)).toContainText('The rate is 10.65% a year · help.example.com');
+  await expect(plan(page)).toContainText('The rate changes every day');
+  await expect(plan(page)).toContainText('invest.example.com');
+  await expect(plan(page)).toContainText('Pesquisar e planejar custou US$ 0,00');
+  await expect(page.getByRole('link', { name: 'help.example.com' })).toHaveAttribute(
+    'href',
+    'https://help.example.com/rate',
+  );
+  const tags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
+  expect((await new AxeBuilder({ page }).withTags(tags).analyze()).violations).toEqual([]);
+  await plan(page)
+    .getByRole('checkbox', { name: /Compare with savings/ })
+    .check();
+  await plan(page).getByRole('button', { name: 'Construir' }).click();
+  await expect(page.getByText('2 de 2 casos do gabarito batem')).toBeVisible({ timeout: 50_000 });
+  await page.getByRole('button', { name: 'Fechar' }).click();
+});
+
+test('a vague copy asks which feature, as a choice, and goes on with it', async ({ page }) => {
+  await page.goto('/');
+  await ask(page, 'copie esse app https://invest.example.com [ask-which]');
+  await expect(plan(page)).toContainText('Qual função copiar?', { timeout: 20_000 });
+  const options = plan(page).getByRole('radio');
+  await expect(options).toHaveCount(2);
+  await expect(options.first()).toHaveAttribute('aria-checked', 'true');
+  await options.first().press('ArrowRight');
+  await expect(options.nth(1)).toHaveAttribute('aria-checked', 'true');
+  await options.first().click();
+  await plan(page).getByRole('button', { name: 'Pesquisar esta' }).click();
+  // The research goes on with the answer, then the plan comes.
+  await expect(plan(page)).toContainText('Gabarito · 2 casos', { timeout: 20_000 });
+  await expect(plan(page)).toContainText('Você disse: Yield simulator');
+  await plan(page).getByRole('button', { name: 'Rejeitar' }).click();
 });
 
 test('passes WCAG 2.2 AA with the plan open', async ({ page }) => {

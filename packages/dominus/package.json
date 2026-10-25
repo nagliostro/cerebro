@@ -19,7 +19,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@napi-rs/keyring": "2.1.2"
+    "@napi-rs/keyring": "2.1.2",
+    "playwright-core": "1.63.0",
+    "tar": "7.4.3"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

@@ -1,6 +1,6 @@
 'use client';
 
-import type { Estimate } from '@cerebro/dominus/plan';
+import type { Estimate, PlanRow } from '@cerebro/dominus/plan';
 import Link from 'next/link';
 import { Fragment, useEffect, useRef, useState } from 'react';
 
@@ -86,6 +86,78 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+type Research = NonNullable<PlanRow['research']>;
+
+/** Where a rule or finding came from: a link to it (by its site), or the original itself. */
+function Source({ source, observed }: { source: string; observed: string }) {
+  if (source === 'observed') return <>{observed}</>;
+  let host = source;
+  try {
+    host = new URL(source).hostname.replace(/^www\./, '');
+  } catch {
+    // Shown as it is.
+  }
+  return (
+    <a
+      href={source}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="whitespace-nowrap underline decoration-white/25 underline-offset-[3px] hover:text-(--cb-highlight)"
+    >
+      {host}
+    </a>
+  );
+}
+
+/** The answer key as a table: inputs, then outputs (in white); the first four, the rest on demand. */
+function Cases({ cases, more }: { cases: Research['cases']; more: string }) {
+  const inputs = [...new Set(cases.flatMap((c) => Object.keys(c.input)))];
+  const outputs = [...new Set(cases.flatMap((c) => Object.keys(c.output)))];
+  const row = (c: Research['cases'][number], i: number) => (
+    <tr key={i} className="border-t border-white/6">
+      {inputs.map((k, j) => (
+        <td key={k} className={`py-[3px] ${j ? 'text-right' : 'text-left'}`}>
+          {c.input[k] ?? ''}
+        </td>
+      ))}
+      {outputs.map((k) => (
+        <td key={k} className="py-[3px] text-right text-(--cb-highlight)">
+          {c.output[k] ?? ''}
+        </td>
+      ))}
+    </tr>
+  );
+  const head = (
+    <thead>
+      <tr>
+        {[...inputs, ...outputs].map((k, j) => (
+          <th key={k} className={`pb-1 font-[inherit] ${j ? 'text-right' : 'text-left'}`}>
+            {k}
+          </th>
+        ))}
+      </tr>
+    </thead>
+  );
+  return (
+    <>
+      <table className="w-full border-collapse tabular-nums">
+        {head}
+        <tbody>{cases.slice(0, 4).map(row)}</tbody>
+      </table>
+      {cases.length > 4 && (
+        <details className="group">
+          <summary className="w-fit cursor-pointer list-none py-1.5 group-open:hidden hover:text-(--cb-highlight) [&::-webkit-details-marker]:hidden">
+            {more}
+          </summary>
+          <table className="w-full border-collapse tabular-nums">
+            <tbody>{cases.slice(4).map((c, i) => row(c, i + 4))}</tbody>
+          </table>
+        </details>
+      )}
+    </>
+  );
+}
+
 function Numbered({ items }: { items: React.ReactNode[] }) {
   return (
     <ol className="grid gap-1">
@@ -121,16 +193,23 @@ export function PlanPanel({
   windows: Messages['window'];
   locale: Locale;
   onAnswer: (text: string) => Promise<boolean>;
-  onAccept: () => void;
+  /** Build, with the improvements of the research the owner ticked (their order). */
+  onAccept: (improvements: number[]) => void;
   onReject: () => void;
   /** The plan says an existing neuron already does this: adjust that one instead. */
   onAdjust: (neuron: string) => void;
 }) {
   const [changing, setChanging] = useState(false);
   const [text, setText] = useState('');
+  const [choice, setChoice] = useState(0);
+  const [chosen, setChosen] = useState<number[]>([]);
+  const choices = useRef<(HTMLButtonElement | null)[]>([]);
   const primary = useRef<HTMLButtonElement>(null);
   const p = plan.plan!;
   const asking = plan.status === 'questions';
+  // The research asked which feature: its options, as one choice.
+  const options = asking ? (p.options ?? []) : [];
+  const r = plan.research?.feature ? plan.research : null;
   const adjusting = !!plan.target;
   const nameOf = (id: string) => others.find((o) => o.id === id);
   // Nothing new to make: an existing neuron is the place for it.
@@ -169,7 +248,9 @@ export function PlanPanel({
               style={{ background: plan.color ?? 'white', boxShadow: `0 0 10px ${plan.color}` }}
             />
           )}
-          <h2 className="text-(--cb-highlight)">{asking ? m.questionsTitle : p.name}</h2>
+          <h2 className="text-(--cb-highlight)">
+            {options.length ? m.chooseTitle : asking ? m.questionsTitle : p.name}
+          </h2>
           {!asking && <span>· {m.role[p.role]}</span>}
         </div>
         <p>“{plan.request}”</p>
@@ -177,7 +258,37 @@ export function PlanPanel({
           <p key={i}>{m.said(e.text)}</p>
         ))}
 
-        {asking ? (
+        {options.length ? (
+          <Section title={m.chooseLead(options.length)}>
+            <div role="radiogroup" aria-label={m.chooseTitle} className="flex flex-wrap gap-2">
+              {options.map((o, i) => (
+                <button
+                  key={o}
+                  ref={(el) => {
+                    choices.current[i] = el;
+                  }}
+                  type="button"
+                  role="radio"
+                  aria-checked={choice === i}
+                  tabIndex={choice === i ? 0 : -1}
+                  onClick={() => setChoice(i)}
+                  onKeyDown={(e) => {
+                    const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+                    if (!d) return;
+                    e.preventDefault();
+                    const n = (i + d + options.length) % options.length;
+                    setChoice(n);
+                    choices.current[n]?.focus();
+                  }}
+                  className={`min-h-9 cursor-pointer rounded-full px-3.5 ${choice === i ? 'bg-white text-[oklch(0.15_0.006_265)]' : 'shadow-[inset_0_0_0_1px_var(--cb-outline)] hover:text-(--cb-highlight)'}`}
+                >
+                  {o}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1.5">{m.chooseNote}</p>
+          </Section>
+        ) : asking ? (
           <Section title={m.questionsLead}>
             <Numbered
               items={p.questions.map((q) => (
@@ -200,6 +311,99 @@ export function PlanPanel({
             <Section title={m.understood}>
               <p>{p.understood}</p>
             </Section>
+            {r && (
+              <>
+                <Section title={m.observed}>
+                  {r.screenshot && (
+                    // eslint-disable-next-line @next/next/no-img-element -- a private file of this plan
+                    <img
+                      src={`/api/plans/${plan.id}/screenshot`}
+                      alt={m.shot}
+                      className="mb-2 aspect-[16/10] w-full rounded-lg object-cover object-top shadow-[inset_0_0_0_1px_var(--cb-outline)]"
+                    />
+                  )}
+                  <div className="grid grid-cols-[auto_1fr] gap-x-2.5">
+                    {r.fields.length > 0 && (
+                      <>
+                        <span className="text-(--cb-highlight)">{m.fields}</span>
+                        <span>{r.fields.map((f) => `${f.name} (${f.detail})`).join(', ')}</span>
+                      </>
+                    )}
+                    {r.outputs.length > 0 && (
+                      <>
+                        <span className="text-(--cb-highlight)">{m.outputs}</span>
+                        <span>{r.outputs.map((f) => `${f.name} (${f.detail})`).join(', ')}</span>
+                      </>
+                    )}
+                    {r.server && (
+                      <>
+                        <span className="text-(--cb-highlight)">{m.server}</span>
+                        <span>{r.server}</span>
+                      </>
+                    )}
+                  </div>
+                </Section>
+                {r.cases.length > 0 && (
+                  <Section title={m.answerKey(r.cases.length)}>
+                    <Cases cases={r.cases} more={m.showCases(r.cases.length)} />
+                    <p className="mt-1.5">
+                      {m.answerKeyNote(
+                        r.cases.filter((c) => c.source === 'observed').length,
+                        r.cases.filter((c) => c.source !== 'observed').length,
+                      )}
+                    </p>
+                  </Section>
+                )}
+                {r.rules.length > 0 && (
+                  <Section title={m.rulesFound}>
+                    <Numbered
+                      items={r.rules.map((x) => (
+                        <Fragment key={x.text}>
+                          {x.text} · <Source source={x.source} observed={m.observedSource} />
+                        </Fragment>
+                      ))}
+                    />
+                  </Section>
+                )}
+                {(r.improvements.length > 0 || r.defects.length > 0) && (
+                  <Section title={m.improvements}>
+                    {r.improvements.map((x, i) => (
+                      <label
+                        key={x.text}
+                        className="grid cursor-pointer grid-cols-[24px_1fr] py-0.5 hover:text-(--cb-highlight)"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={chosen.includes(i)}
+                          onChange={(e) =>
+                            setChosen((c) =>
+                              e.target.checked ? [...c, i] : c.filter((n) => n !== i),
+                            )
+                          }
+                          className="mt-[3px] size-3.5 cursor-pointer accent-white"
+                        />
+                        <span>
+                          {x.text} · <Source source={x.source} observed={m.observedSource} />
+                        </span>
+                      </label>
+                    ))}
+                    {r.defects.map((x) => (
+                      <p key={x.text} className="mt-1.5">
+                        {m.defect} {x.text} ·{' '}
+                        <Source source={x.source} observed={m.observedSource} />
+                      </p>
+                    ))}
+                  </Section>
+                )}
+                {r.gaps.length > 0 && (
+                  <Section title={m.gaps}>
+                    {r.gaps.map((g) => (
+                      <p key={g}>{g}</p>
+                    ))}
+                  </Section>
+                )}
+              </>
+            )}
             {!elsewhere && (
               <Section title={adjusting ? m.changesList : m.creates}>
                 <Numbered
@@ -243,6 +447,38 @@ export function PlanPanel({
                 <p>{m.linksNote(p.name)}</p>
               </Section>
             )}
+            {p.libraries?.length > 0 && (
+              <Section title={m.libraries}>
+                {p.libraries.map((l) => (
+                  <p key={l.name}>
+                    <a
+                      href={`https://www.npmjs.com/package/${l.name}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-(--cb-highlight) underline decoration-white/25 underline-offset-[3px]"
+                    >
+                      {l.name}
+                    </a>{' '}
+                    · {m.library(l.version, l.license, l.weekly.toLocaleString(locale))}
+                    {l.why && ` · ${l.why}`}
+                  </p>
+                ))}
+                <p className="mt-1.5">{m.librariesNote}</p>
+              </Section>
+            )}
+            {r && r.sites.length > 0 && (
+              <Section title={m.sites}>
+                <div className="grid grid-cols-[auto_1fr] gap-x-2.5">
+                  {r.sites.map((site) => (
+                    <div key={site.host} className="contents">
+                      <span className="text-(--cb-highlight)">{site.host}</span>
+                      <span>{m.pages(site.pages)}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-1.5">{m.sitesNote}</p>
+              </Section>
+            )}
             {p.checks.length > 0 && (
               <Section title={m.checks}>
                 <Numbered items={p.checks} />
@@ -257,11 +493,28 @@ export function PlanPanel({
             )}
           </>
         )}
-        <p className="text-(--cb-cost)">{m.thinkCost(m.usd(plan.thinkCostUsd))}</p>
+        <p className="text-(--cb-cost)">
+          {(plan.research ? m.researchCost : m.thinkCost)(m.usd(plan.thinkCostUsd))}
+        </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 px-5 pt-3 pb-5">
-        {asking || changing ? (
+        {options.length ? (
+          <>
+            <button
+              ref={primary}
+              type="button"
+              onClick={() => void onAnswer(options[choice]!)}
+              className={PRIMARY}
+            >
+              {m.researchThis}
+            </button>
+            <span className="flex-1" />
+            <button type="button" onClick={onReject} className={PLAIN}>
+              {m.reject}
+            </button>
+          </>
+        ) : asking || changing ? (
           <>
             <Field
               id="plan-answer"
@@ -308,7 +561,12 @@ export function PlanPanel({
         ) : (
           <>
             <p className={`w-full ${estimate.cost ? 'text-(--cb-cost)' : ''}`}>{estimate.text}</p>
-            <button ref={primary} type="button" onClick={onAccept} className={PRIMARY}>
+            <button
+              ref={primary}
+              type="button"
+              onClick={() => onAccept(chosen)}
+              className={PRIMARY}
+            >
               {adjusting ? m.acceptAdjust : m.accept}
             </button>
             <button type="button" onClick={() => setChanging(true)} className={SOFT}>

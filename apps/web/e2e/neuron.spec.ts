@@ -54,7 +54,7 @@ test('its files come only with a valid signed link, sandboxed', async ({ page, r
   const res = await request.get(src);
   expect(res.status()).toBe(200);
   const csp = res.headers()['content-security-policy']!;
-  expect(csp).toContain('sandbox allow-scripts allow-forms');
+  expect(csp).toContain('sandbox allow-scripts allow-forms allow-downloads');
   expect(csp).toContain("connect-src 'none'");
   expect((await request.get('/apps/financas/forged.token/')).status()).toBe(404);
   const folder = src.replace(/index\.html$/, '');
@@ -64,6 +64,9 @@ test('its files come only with a valid signed link, sandboxed', async ({ page, r
   // The kit reaches the isolated application, its font included (fonts load only with CORS).
   const font = await request.get('/neuron-kit/geist-mono-500.woff2');
   expect(font.headers()['access-control-allow-origin']).toBe('*');
+  // And so do its libraries (PDFs, ZIPs): the application has no network of its own.
+  for (const lib of ['pdf-lib', 'jszip'])
+    expect((await request.get(`/neuron-kit/lib/${lib}.min.js`)).status()).toBe(200);
 });
 
 test('the key: the owner allows another neuron, operation by operation, and revokes', async ({

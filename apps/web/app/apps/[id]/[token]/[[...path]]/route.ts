@@ -22,6 +22,7 @@ const TYPES: Record<string, string> = {
   '.jpeg': 'image/jpeg',
   '.webp': 'image/webp',
   '.woff2': 'font/woff2',
+  '.txt': 'text/plain; charset=utf-8',
 };
 
 const notFound = () => new Response('Not found', { status: 404 });
@@ -30,7 +31,8 @@ function policy(origin: string, id: string) {
   const own = `${origin}/apps/${id}/`;
   const kit = `${origin}/neuron-kit/`;
   return [
-    'sandbox allow-scripts allow-forms',
+    // Downloads: only what the application itself makes (a split PDF, a ZIP); still no network.
+    'sandbox allow-scripts allow-forms allow-downloads',
     "default-src 'none'",
     `script-src ${own} ${kit} 'unsafe-inline'`,
     `style-src ${own} ${kit} 'unsafe-inline'`,

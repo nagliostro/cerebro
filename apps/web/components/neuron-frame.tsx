@@ -58,7 +58,7 @@ export function NeuronFrame({ id, src, title }: { id: string; src: string; title
       <iframe
         ref={frame}
         title={title}
-        sandbox="allow-scripts allow-forms"
+        sandbox="allow-scripts allow-forms allow-downloads"
         className="w-full flex-1 border-0 bg-transparent [color-scheme:dark]"
       />
       <p

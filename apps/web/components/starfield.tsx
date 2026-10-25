@@ -21,7 +21,7 @@ const layers = [
 const rand = random(19);
 const between = ([min, max]: readonly [number, number]) => min + rand() * (max - min);
 
-const stars = layers.flatMap((layer) =>
+export const stars = layers.flatMap((layer) =>
   Array.from({ length: layer.count }, () => ({
     x: rand() * 1600,
     y: rand() * 1000,

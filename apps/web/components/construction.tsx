@@ -3,10 +3,11 @@
 import type { PlanRow, Step } from '@cerebro/dominus/plan';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { t, type Locale, type Messages } from '@/lib/i18n';
 
+import { BackgroundSynapses } from './background-synapses';
 import { BuildSteps, type StepPoint } from './build-steps';
 import { DominusBox } from './dominus-box';
 import { Memory, type MemoryProps } from './memory';
@@ -16,7 +17,7 @@ import { PlanPanel } from './plan-panel';
 export type PlanView = PlanRow & { elapsedMs: number | null; expectMs: number | null };
 type Other = { id: string; name: string; color: string };
 
-const RUNNING = new Set(['thinking', 'building']);
+const RUNNING = new Set(['researching', 'thinking', 'building']);
 const OPEN = new Set(['questions', 'ready']);
 
 async function call<T>(path: string, body?: object): Promise<T> {
@@ -48,6 +49,8 @@ function stepPoints(
   b: Messages['build'],
   name: (id: string) => string,
   locale: Locale,
+  /** The Navegador, when it is in the Memória: its steps leave from it. */
+  navegador?: string,
 ) {
   return steps.map((s, i): StepPoint => {
     const key = `${s.kind}-${'path' in s ? s.path : i}`;
@@ -84,6 +87,47 @@ function stepPoints(
             new Date(s.until).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
           ),
           busy: true,
+          ai: false,
+        };
+      // A copy's research: each site, search and count is the AI at work (gold).
+      case 'guide':
+        return { key, text: b.step.guide(s.lessons), busy: false, ai: false };
+      case 'browse':
+        return {
+          key: `browse-${s.host}`,
+          text: b.step.browse(s.host, s.pages, s.done),
+          busy: !s.done,
+          ai: true,
+          from: navegador,
+        };
+      case 'search':
+        return {
+          key: `search-${i}`,
+          text: b.step.search(s.query, s.done),
+          busy: !s.done,
+          ai: true,
+          from: navegador,
+        };
+      case 'cases':
+        return {
+          key,
+          text: b.step.cases(s.count, s.done),
+          busy: !s.done,
+          ai: true,
+          from: navegador,
+        };
+      case 'rules':
+        return { key, text: b.step.rules(s.count), busy: false, ai: true };
+      case 'findings':
+        return { key, text: b.step.findings(s.count), busy: false, ai: true };
+      case 'libraries':
+        return { key, text: b.step.libraries(s.count), busy: false, ai: true };
+      // The answer key costs nothing: the Cerebro runs it, no AI.
+      case 'verify':
+        return {
+          key: `verify-${i}`,
+          text: b.step.verify(s.passed, s.total, s.done),
+          busy: !s.done,
           ai: false,
         };
     }
@@ -130,25 +174,75 @@ export function Construction({
     }
   }, []);
 
-  // While it runs, follow it live (no asking again and again) and count the seconds.
+  // The plan on screen, for the event stream, which stays open while plans come and go.
+  const shownRef = useRef(planId);
   useEffect(() => {
-    if (!planId || !running) return;
-    const events = new EventSource('/api/events');
-    events.onopen = () => void load(planId);
-    events.onmessage = (e) => {
-      try {
-        const d = JSON.parse(e.data) as { type: string; plan: string | null };
-        if (d.type === 'plan.changed' && d.plan === planId) void load(planId);
-      } catch {
-        // Not an event.
+    shownRef.current = planId;
+  }, [planId]);
+
+  // A plan started on another device (or another tab): the open one of this screen, if any.
+  const targetId = target?.id;
+  const adopt = useCallback(async () => {
+    try {
+      const next = await call<PlanView | null>(
+        `/api/plans/current${targetId ? `?target=${targetId}` : ''}`,
+      );
+      if (next && next.id !== shownRef.current) {
+        setPlan(next);
+        setSecs(0);
       }
+    } catch {
+      // The core did not answer; the next event tries again.
+    }
+  }, [targetId]);
+
+  // Every device follows the same plans live, the way Linear and Replicache do it: the core only
+  // pokes ("plan x changed", "the graph changed") and each screen reads again what it shows.
+  // A hidden screen lets go of the stream (a phone in the pocket costs nothing) and, on
+  // coming back or reconnecting, reads everything again, since it may have missed events.
+  useEffect(() => {
+    let events: EventSource | null = null;
+    let first = true;
+    const resync = () => {
+      if (shownRef.current) void load(shownRef.current);
+      void adopt();
+      if (!first) router.refresh();
+      first = false;
     };
-    const tick = setInterval(() => setSecs((s) => s + 1), 1000);
+    const connect = () => {
+      if (events || document.hidden) return;
+      events = new EventSource('/api/events');
+      events.onopen = resync;
+      events.onmessage = (e) => {
+        try {
+          const d = JSON.parse(e.data) as { type: string; plan: string | null };
+          if (d.type === 'graph.changed') router.refresh();
+          else if (d.type === 'plan.changed' && d.plan === shownRef.current) void load(d.plan);
+          else if (d.type === 'plan.changed') void adopt();
+        } catch {
+          // Not an event.
+        }
+      };
+    };
+    const onVisibility = () => {
+      if (!document.hidden) return connect();
+      events?.close();
+      events = null;
+    };
+    connect();
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
-      events.close();
-      clearInterval(tick);
+      document.removeEventListener('visibilitychange', onVisibility);
+      events?.close();
     };
-  }, [planId, running, load]);
+  }, [load, adopt, router]);
+
+  // While it runs, count the seconds.
+  useEffect(() => {
+    if (!running) return;
+    const tick = setInterval(() => setSecs((s) => s + 1), 1000);
+    return () => clearInterval(tick);
+  }, [running, planId]);
 
   // A neuron made, adjusted or taken back: the screen reads the graph (or the application) again.
   useEffect(() => {
@@ -187,11 +281,11 @@ export function Construction({
     }
   }
 
-  async function act(action: 'answer' | 'accept' | 'reject' | 'undo', text?: string) {
+  async function act(action: 'answer' | 'accept' | 'reject' | 'undo', body: object = {}) {
     if (!plan) return false;
     setProblem(null);
     try {
-      const next = await call<PlanView>(`/api/plans/${plan.id}/${action}`, { text });
+      const next = await call<PlanView>(`/api/plans/${plan.id}/${action}`, body);
       setPlan(action === 'reject' ? null : next);
       setSecs(0);
       return true;
@@ -202,7 +296,8 @@ export function Construction({
   }
 
   const name = (id: string) => others.find((o) => o.id === id)?.name ?? id;
-  const points = plan ? stepPoints(plan.steps, b, name, locale) : [];
+  const navegador = others.some((o) => o.id === 'navegador') ? 'navegador' : undefined;
+  const points = plan ? stepPoints(plan.steps, b, name, locale, navegador) : [];
   const files = plan?.steps.filter((s) => s.kind === 'file').length ?? 0;
   const neuronName = target?.name ?? plan?.plan?.name ?? '';
 
@@ -215,6 +310,9 @@ export function Construction({
     return left <= 0 ? b.late : b.left(Math.floor(left / 60), left % 60);
   }
 
+  // A copy was checked against its answer key: the last round says how it ended.
+  const verified = plan?.steps.findLast((s) => s.kind === 'verify');
+
   let caption: React.ReactNode = null;
   if (problem) caption = <p className="cb-pill">{problem}</p>;
   else if (plan && running) {
@@ -225,7 +323,9 @@ export function Construction({
           {plan.status === 'building' ? (
             (target ? b.adjusting : b.building)(neuronName, files)
           ) : (
-            <span className="cb-busy">{busy?.text ?? b.step.thinking}</span>
+            <span className="cb-busy">
+              {busy?.text ?? (plan.status === 'researching' ? b.step.researching : b.step.thinking)}
+            </span>
           )}
         </p>
         {countdown() && <p className="cb-pill">{countdown()}</p>}
@@ -242,6 +342,7 @@ export function Construction({
         <p className="cb-pill text-(--cb-highlight)">
           {(target ? b.adjusted : b.built)(neuronName)}
         </p>
+        {verified && <p className="cb-pill">{b.verified(verified.passed, verified.total)}</p>}
         <p className="cb-pill text-(--cb-cost)">
           {(target ? b.adjustCost : b.buildCost)(
             plan.buildCostUsd === null ? null : b.usd(plan.buildCostUsd),
@@ -315,6 +416,9 @@ export function Construction({
 
   return (
     <>
+      {/* While the AI thinks or builds (tokens being spent), synapses stroll across the sky. */}
+      <BackgroundSynapses active={running} />
+
       {memory && (
         <Memory
           {...memory}
@@ -355,8 +459,8 @@ export function Construction({
           m={b}
           windows={m.window}
           locale={locale}
-          onAnswer={(text) => act('answer', text)}
-          onAccept={() => void act('accept')}
+          onAnswer={(text) => act('answer', { text })}
+          onAccept={(improvements) => void act('accept', { improvements })}
           onReject={() => void act('reject')}
           onAdjust={async (neuron) => {
             // The same request, as an adjustment of that neuron, on its own screen.

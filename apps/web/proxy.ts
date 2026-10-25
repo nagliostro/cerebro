@@ -50,7 +50,7 @@ export async function proxy(request: NextRequest) {
   for (const [param, redeem, landing] of [
     [KEY_PARAM, redeemLaunchKey, null],
     // A paired phone lands on its welcome, which says how to add the Cerebro to its home screen.
-    [PAIR_PARAM, redeemPairKey, '/devices?paired=1'],
+    [PAIR_PARAM, redeemPairKey, '/settings/devices?paired=1'],
   ] as const) {
     const key = url.searchParams.get(param);
     if (key === null) continue;
@@ -67,7 +67,10 @@ export async function proxy(request: NextRequest) {
       const device = deviceFrom(request.headers.get('user-agent'));
       response.cookies.set(SESSION_COOKIE, await createSession(device), {
         httpOnly: true,
-        sameSite: 'strict',
+        // Lax, as GitHub and Google do for the session: opening the Cerebro from a link in another
+        // app or site still carries it (Strict did not, and the phone fell on the locked screen).
+        // Changes stay safe: the guard refuses any change whose Origin is not the Cerebro.
+        sameSite: 'lax',
         secure: origin.startsWith('https:'),
         path: '/',
         maxAge: SESSION_MAX_AGE,

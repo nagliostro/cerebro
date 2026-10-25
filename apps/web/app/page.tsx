@@ -25,7 +25,7 @@ export default async function Home() {
         <TopMenu
           items={[
             { label: m.menu.memory, href: '/' },
-            { label: m.menu.devices, href: '/devices' },
+            { label: m.menu.settings, href: '/settings' },
           ]}
           labels={m.menu}
         />

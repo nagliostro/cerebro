@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 
 import { nowMs } from '../clock.ts';
+import type { Library } from '../research/libraries.ts';
+import type { Research } from '../research/record.ts';
 import type { Exchange } from './prompts.ts';
 
 // A request to build (or adjust) a neuron, from the first word to the finished neuron. The state
@@ -9,6 +11,8 @@ import type { Exchange } from './prompts.ts';
 // comes from an AI as JSON and is checked here, field by field, before the owner ever sees it.
 
 export type PlanStatus =
+  /** Looking at the original and what is written about it, before planning (a copy). */
+  | 'researching'
   | 'thinking'
   | 'questions'
   | 'ready'
@@ -19,11 +23,13 @@ export type PlanStatus =
   | 'canceled'
   /** An adjustment the owner took back: the previous application is in place again. */
   | 'undone';
-export const ACTIVE: PlanStatus[] = ['thinking', 'questions', 'ready', 'building'];
+export const ACTIVE: PlanStatus[] = ['researching', 'thinking', 'questions', 'ready', 'building'];
 
 export type Plan = {
   ready: boolean;
   questions: string[];
+  /** Choices for the question, when the research found them (which feature to copy). */
+  options: string[];
   name: string;
   role: 'life' | 'craft';
   understood: string;
@@ -33,6 +39,10 @@ export type Plan = {
   checks: string[];
   limits: string[];
   existing: string | null;
+  /** Free libraries the neuron will carry, checked on the npm registry (filled by the code). */
+  libraries: Library[];
+  /** The ones the planner named, before the check. */
+  wanted?: { name: string; why: string }[];
 };
 
 /** A real thing the Dominus did or is doing, shown as a point around it. Codes, not sentences. */
@@ -42,7 +52,19 @@ export type Step =
   | { kind: 'think'; done: boolean; costUsd?: number | null }
   | { kind: 'file'; path: string; done: boolean }
   | { kind: 'check'; files: number; bytes: number }
-  | { kind: 'wait'; until: number };
+  | { kind: 'wait'; until: number }
+  /** The guide to copying a feature was read, with this install's lessons. */
+  | { kind: 'guide'; lessons: number }
+  /** The Navegador on one site: how many pages of it so far. */
+  | { kind: 'browse'; host: string; pages: number; done: boolean }
+  | { kind: 'search'; query: string; done: boolean }
+  /** What the research recorded so far. */
+  | { kind: 'cases'; count: number; done: boolean }
+  | { kind: 'rules'; count: number; done: boolean }
+  | { kind: 'findings'; count: number; done: boolean }
+  | { kind: 'libraries'; count: number; done: boolean }
+  /** The answer key run against the build: how many cases matched. */
+  | { kind: 'verify'; passed: number; total: number; done: boolean };
 
 export type Estimate = {
   provider: string | null;
@@ -70,6 +92,9 @@ export type PlanRow = {
   color: string | null;
   estimate: Estimate | null;
   steps: Step[];
+  /** What the research found (a copy), for the plan and the build. */
+  research: Research | null;
+  researchJob: string | null;
   thinkJob: string | null;
   buildJob: string | null;
   thinkCostUsd: number;
@@ -85,22 +110,24 @@ export type PlanRow = {
 };
 
 const COLUMNS = `id, request, locale, target, status, exchanges, plan, color, estimate, steps,
-  think_job AS thinkJob, build_job AS buildJob, think_cost AS thinkCostUsd,
+  research, research_job AS researchJob, think_job AS thinkJob, build_job AS buildJob, think_cost AS thinkCostUsd,
   build_cost AS buildCostUsd, neuron, adjusting, error, created_at AS createdAt, updated_at AS updatedAt,
   started_at AS startedAt`;
 
-type Raw = Omit<PlanRow, 'exchanges' | 'plan' | 'estimate' | 'steps' | 'adjusting'> & {
+type Raw = Omit<PlanRow, 'exchanges' | 'plan' | 'estimate' | 'steps' | 'adjusting' | 'research'> & {
   adjusting: number;
   exchanges: string;
   plan: string | null;
   estimate: string | null;
   steps: string;
+  research: string | null;
 };
 
 const fromRaw = (r: Raw): PlanRow => ({
   ...r,
   exchanges: JSON.parse(r.exchanges),
-  plan: r.plan ? JSON.parse(r.plan) : null,
+  plan: r.plan ? { options: [], libraries: [], ...JSON.parse(r.plan) } : null,
+  research: r.research ? JSON.parse(r.research) : null,
   estimate: r.estimate ? JSON.parse(r.estimate) : null,
   steps: JSON.parse(r.steps),
   adjusting: !!r.adjusting,
@@ -146,6 +173,10 @@ export class Plans {
     const columns = this.db.prepare(`PRAGMA table_info(plans)`).all() as { name: string }[];
     if (!columns.some((c) => c.name === 'adjusting'))
       this.db.exec(`ALTER TABLE plans ADD COLUMN adjusting INTEGER NOT NULL DEFAULT 0`);
+    if (!columns.some((c) => c.name === 'research'))
+      this.db.exec(
+        `ALTER TABLE plans ADD COLUMN research TEXT; ALTER TABLE plans ADD COLUMN research_job TEXT`,
+      );
   }
 
   close() {
@@ -172,8 +203,10 @@ export class Plans {
 
   byJob(job: string): PlanRow | null {
     const r = this.db
-      .prepare(`SELECT ${COLUMNS} FROM plans WHERE think_job = ? OR build_job = ?`)
-      .get(job, job) as Raw | undefined;
+      .prepare(
+        `SELECT ${COLUMNS} FROM plans WHERE research_job = ? OR think_job = ? OR build_job = ?`,
+      )
+      .get(job, job, job) as Raw | undefined;
     return r ? fromRaw(r) : null;
   }
 
@@ -188,6 +221,15 @@ export class Plans {
       )
       .all(...ACTIVE, ...(typeof target === 'string' ? [target] : [])) as Raw[];
     return rows.map(fromRaw);
+  }
+
+  /** Every request, newest first: the history of what the owner did (Settings → Processes). */
+  recent(limit = 100): PlanRow[] {
+    return (
+      this.db
+        .prepare(`SELECT ${COLUMNS} FROM plans ORDER BY created_at DESC LIMIT ?`)
+        .all(limit) as Raw[]
+    ).map(fromRaw);
   }
 
   /** The plans that built (or adjusted) one neuron, newest first. */
@@ -215,6 +257,8 @@ export class Plans {
         | 'color'
         | 'estimate'
         | 'steps'
+        | 'research'
+        | 'researchJob'
         | 'thinkJob'
         | 'buildJob'
         | 'buildCostUsd'
@@ -233,6 +277,8 @@ export class Plans {
       color: 'color',
       estimate: 'estimate',
       steps: 'steps',
+      research: 'research',
+      researchJob: 'research_job',
       thinkJob: 'think_job',
       buildJob: 'build_job',
       buildCostUsd: 'build_cost',
@@ -241,7 +287,7 @@ export class Plans {
       error: 'error',
       startedAt: 'started_at',
     };
-    const json = new Set(['exchanges', 'plan', 'estimate', 'steps']);
+    const json = new Set(['exchanges', 'plan', 'estimate', 'steps', 'research']);
     const sets: string[] = [];
     const values: (string | number | null)[] = [];
     for (const [k, v] of Object.entries(changes)) {
@@ -303,6 +349,7 @@ export function parsePlan(answer: string, known: Set<string>): Plan {
   const plan: Plan = {
     ready,
     questions: ready ? [] : questions,
+    options: [],
     name,
     role: raw.role === 'craft' ? 'craft' : 'life',
     understood: text(raw.understood, 600),
@@ -331,6 +378,14 @@ export function parsePlan(answer: string, known: Set<string>): Plan {
     checks: texts(raw.checks, 5, 200),
     limits: texts(raw.limits, 3, 200),
     existing: typeof raw.existing === 'string' && known.has(raw.existing) ? raw.existing : null,
+    libraries: [],
+    wanted: (Array.isArray(raw.libraries) ? raw.libraries : [])
+      .map((l: { name?: unknown; why?: unknown }) => ({
+        name: text(l?.name, 214),
+        why: text(l?.why, 200),
+      }))
+      .filter((l) => l.name)
+      .slice(0, 5),
   };
   // "An existing neuron already does this" is an answer of its own: nothing new to create.
   if (ready && !plan.existing && (!plan.name || !plan.creates.length))

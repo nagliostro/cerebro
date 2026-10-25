@@ -7,6 +7,7 @@ import type {
   AskResult,
   HealthCheck,
   ModelRole,
+  ToolAction,
 } from './types.ts';
 
 // API adapter for every provider that speaks the OpenAI Chat Completions format: OpenAI,
@@ -54,12 +55,46 @@ export function openAiCompatible(conn: ApiConnection, vault: Vault): AiProvider 
   }
 
   /**
-   * Agent mode: the model asks for file tools, the Cerebro runs them inside cwd and answers, until
-   * the model gives its final text. Only files: an API model never runs a command here.
+   * Agent mode: the model asks for tools, the Cerebro runs them and answers, until the model gives
+   * its final text. Files (inside cwd) or research (the Navegador and the research record): an API
+   * model never runs a command here.
    */
   async function agent(req: AskRequest, onEvent?: (e: AskEvent) => void): Promise<AskResult> {
-    if (req.access !== 'files' || !req.cwd)
-      throw new Error(`${conn.name} runs agents only with files, in a folder of their own`);
+    if (!req.cwd || (req.access !== 'files' && req.access !== 'research'))
+      throw new Error(
+        `${conn.name} runs agents only with files or research, in a folder of their own`,
+      );
+    const cwd = req.cwd;
+    if (req.access === 'files')
+      return loop(req, FILE_TOOL_SPECS, (name, args) => runFileTool(cwd, name, args), onEvent);
+    // Loaded only for a research: the browser stays out of every other call.
+    const { ResearchTools, RESEARCH_TOOL_SPECS } = await import('../research/tools.ts');
+    const research = new ResearchTools({
+      dir: cwd,
+      locale: req.locale ?? 'en',
+      maxPages: req.maxPages ?? 25,
+    });
+    try {
+      return await loop(
+        req,
+        RESEARCH_TOOL_SPECS,
+        (name, args) => research.run(name, args),
+        onEvent,
+      );
+    } finally {
+      await research.close();
+    }
+  }
+
+  async function loop(
+    req: AskRequest,
+    tools: readonly unknown[],
+    runTool: (
+      name: string,
+      args: Record<string, unknown>,
+    ) => Promise<{ output: string; action: ToolAction; target?: string }>,
+    onEvent?: (e: AskEvent) => void,
+  ): Promise<AskResult> {
     const started = performance.now();
     const messages: Message[] = [
       ...(req.system ? [{ role: 'system', content: req.system }] : []),
@@ -74,7 +109,7 @@ export function openAiCompatible(conn: ApiConnection, vault: Vault): AiProvider 
         method: 'POST',
         headers: await headers(),
         signal: req.signal,
-        body: JSON.stringify({ model: conn.models[req.role], messages, tools: FILE_TOOL_SPECS }),
+        body: JSON.stringify({ model: conn.models[req.role], messages, tools }),
       });
       if (!res.ok)
         throw new Error(`${conn.name} answered ${res.status}: ${(await res.text()).slice(0, 300)}`);
@@ -111,7 +146,7 @@ export function openAiCompatible(conn: ApiConnection, vault: Vault): AiProvider 
         } catch {
           // A malformed call gets an error answer below, like any other.
         }
-        const r = await runFileTool(req.cwd, call.function.name, args);
+        const r = await runTool(call.function.name, args);
         onEvent?.({ type: 'tool', action: r.action, target: r.target });
         messages.push({ role: 'tool', tool_call_id: call.id, content: r.output });
       }

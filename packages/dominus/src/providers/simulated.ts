@@ -1,5 +1,5 @@
 import { nowMs } from '../clock.ts';
-import { BUILD_TAG, PLAN_TAG } from '../builder/prompts.ts';
+import { BUILD_TAG, PLAN_TAG, RESEARCH_TAG } from '../builder/prompts.ts';
 import { writeText } from './file-tools.ts';
 import type { AiProvider, AskEvent, AskRequest } from './types.ts';
 
@@ -32,8 +32,11 @@ function plan(prompt: string) {
       ready: false,
       questions: ['What should it keep track of?', 'Just for you, or shared?'],
     };
-  // "Plants: water them every week" → "Plants"; otherwise the first word.
-  const head = request.includes(':') ? request.split(':')[0]! : request.split(/\s+/)[0]!;
+  // A copy is named after the feature researched; "Plants: water them every week" → "Plants";
+  // otherwise the first word.
+  const researched = prompt.match(/The research of "([^"]+)"/)?.[1];
+  const head =
+    researched ?? (request.includes(':') ? request.split(':')[0]! : request.split(/\s+/)[0]!);
   const name = adjusting ?? head.charAt(0).toUpperCase() + head.slice(1);
   // [existing:<neuron>] answers that an existing neuron already does this.
   const existing = adjusting ? null : (request.match(/\[existing:([a-z0-9-]+)\]/)?.[1] ?? null);
@@ -64,6 +67,11 @@ function plan(prompt: string) {
     checks: ['An item added shows in the list'],
     limits: [],
     existing: null,
+    // [lib:<package>] names a free library to carry, to test the registry check and the vendoring.
+    libraries: [...request.matchAll(/\[lib:([a-z0-9@/._-]+)\]/g)].map((m) => ({
+      name: m[1],
+      why: 'to test',
+    })),
   };
 }
 
@@ -107,6 +115,62 @@ document.getElementById('form').onsubmit = async (e) => {
 show();
 `;
 
+/**
+ * A research of a simulated simulator: what a real one records, through the same recording code,
+ * without opening a browser. [ask-which] in the request makes it ask which feature first.
+ */
+async function research(req: AskRequest, emit: (e: AskEvent) => void) {
+  const { record } = await import('../research/record.ts');
+  const url = req.prompt.match(/https?:\/\/[^\s<>"']+/)?.[0] ?? 'https://example.com/';
+  const host = new URL(url).hostname;
+  const answered = req.prompt.includes('The owner answered:');
+  const step = async (e: AskEvent, kind?: Parameters<typeof record>[1], args?: object) => {
+    emit(e);
+    await sleep(STEP_MS / 2, req.signal);
+    if (kind) await record(req.cwd!, kind, args as Record<string, unknown>);
+  };
+  await step({ type: 'tool', action: 'browse', target: host });
+  if (req.prompt.includes('[ask-which]') && !answered) {
+    await step({ type: 'tool', action: 'record', target: 'question' }, 'question', {
+      question: 'Which feature should I copy?',
+      options: ['Yield simulator', 'Comparator'],
+    });
+    return 'Asked which feature.';
+  }
+  await step({ type: 'tool', action: 'record', target: 'feature' }, 'feature', {
+    feature: 'Yield simulator',
+    target: url,
+    server: 'one call, the rate of the day',
+    fields: [{ name: 'value', detail: 'number, at least 1' }],
+    outputs: [{ name: 'net', detail: '2 decimals' }],
+  });
+  for (const [value, net] of [
+    ['1000', '1106.50'],
+    ['20', '22.13'],
+  ])
+    await step({ type: 'tool', action: 'record', target: 'case' }, 'case', {
+      input: { value },
+      output: { net },
+      source: 'observed',
+    });
+  await step({ type: 'tool', action: 'search', target: 'yield simulator rules' });
+  await step({ type: 'tool', action: 'browse', target: 'help.example.com' });
+  await step({ type: 'tool', action: 'record', target: 'rule' }, 'rule', {
+    text: 'The rate is 10.65% a year',
+    source: 'https://help.example.com/rate',
+  });
+  await step({ type: 'tool', action: 'record', target: 'finding' }, 'finding', {
+    kind: 'improvement',
+    text: 'Compare with savings',
+    source: 'https://forum.example.com/1',
+  });
+  await step({ type: 'tool', action: 'record', target: 'finding' }, 'finding', {
+    kind: 'gap',
+    text: 'The rate changes every day',
+  });
+  return 'Researched the yield simulator.';
+}
+
 async function build(req: AskRequest, emit: (e: AskEvent) => void) {
   // What was asked shows in the application, so a test can tell one version from another.
   const asked = (req.prompt.match(/The owner asked: ([^\n]*)/)?.[1] ?? '').replace(/[<>&]/g, '');
@@ -119,6 +183,16 @@ async function build(req: AskRequest, emit: (e: AskEvent) => void) {
         ['style.css', `:root { --cb-cor: ${color}; }\n`],
         ['app.js', SCRIPT],
       ];
+  // A copy with an answer key: the computation and its check. [check-fail-once] gets it wrong
+  // in the first round, to test the round back to the Builder.
+  if (req.prompt.includes('window.cerebroCheck')) {
+    const wrong = req.prompt.includes('[check-fail-once]') && !req.prompt.includes('check failed');
+    files.push(
+      ['calc.js', `const net = (value) => (value * ${wrong ? '1.1' : '1.1065'}).toFixed(2);\n`],
+      ['checks.js', 'window.cerebroCheck = (input) => ({ net: net(Number(input.value)) });\n'],
+      ['checks.json', '{ "scripts": ["calc.js", "checks.js"] }\n'],
+    );
+  }
   for (const [file, content] of files) {
     emit({ type: 'tool', action: 'write', target: file });
     await sleep(STEP_MS, req.signal);
@@ -159,7 +233,9 @@ export function simulated(): AiProvider {
       if (req.system?.startsWith(PLAN_TAG)) {
         await sleep(STEP_MS, req.signal);
         text = JSON.stringify(plan(req.prompt));
-      } else if (req.system?.startsWith(BUILD_TAG) && req.cwd)
+      } else if (req.system?.startsWith(RESEARCH_TAG) && req.cwd)
+        text = await research(req, (e) => onEvent?.(e));
+      else if (req.system?.startsWith(BUILD_TAG) && req.cwd)
         text = await build(req, (e) => onEvent?.(e));
       else text = `echo(${req.role}, ${req.mode}): ${req.prompt}`;
       onEvent?.({ type: 'text', text });

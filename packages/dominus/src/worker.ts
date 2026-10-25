@@ -16,8 +16,15 @@ export type AskPayload = {
   system?: string;
   effort?: 'low' | 'medium' | 'high';
   cwd?: string;
-  /** Files only: the agent reads and writes inside cwd and nothing else (building a neuron). */
-  access?: 'files';
+  /**
+   * files: the agent reads and writes inside cwd and nothing else (building a neuron).
+   * research: only the research tools, recording in cwd (researching before a plan).
+   */
+  access?: 'files' | 'research';
+  /** Research: navigations allowed, by the depth. */
+  maxPages?: number;
+  /** Research: the language the browser announces. */
+  locale?: string;
   sessionId?: string;
   /** The kind of task ("chat", "build"...), so the Router learns what works for each. */
   kind?: string;
@@ -34,7 +41,12 @@ export function isAskPayload(p: unknown): p is AskPayload {
     typeof a.prompt === 'string' &&
     a.prompt.length > 0 &&
     (a.kind === undefined || (typeof a.kind === 'string' && a.kind.length <= 40)) &&
-    (a.access === undefined || (a.access === 'files' && a.mode === 'agent' && !!a.cwd))
+    (a.access === undefined ||
+      ((a.access === 'files' || a.access === 'research') && a.mode === 'agent' && !!a.cwd)) &&
+    (a.maxPages === undefined ||
+      (Number.isInteger(a.maxPages) && a.maxPages >= 1 && a.maxPages <= 100)) &&
+    (a.locale === undefined ||
+      (typeof a.locale === 'string' && /^[a-z]{2}(-[A-Z]{2})?$/.test(a.locale)))
   );
 }
 
@@ -78,6 +90,15 @@ const handlers: Record<string, Handler> = {
       throw e;
     }
   },
+};
+
+/** The answer key run against a build, in a page with no network (no AI: costs nothing). */
+handlers.checks = async (payload) => {
+  const p = payload as { dir?: unknown; cases?: unknown };
+  if (typeof p?.dir !== 'string' || !Array.isArray(p.cases) || p.cases.length > 40)
+    throw new Error('invalid checks payload');
+  const { runChecks } = await import('./browser/checks.ts');
+  return runChecks(p.dir, p.cases);
 };
 
 // Jobs that exist only to test the core: steps with checkpoints, and a worker that hangs.

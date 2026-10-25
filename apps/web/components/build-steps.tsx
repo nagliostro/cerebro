@@ -2,8 +2,26 @@
 
 import { useSyncExternalStore } from 'react';
 
-/** One point around the Dominus: a real step, never decoration. */
-export type StepPoint = { key: string; text: string; busy: boolean; ai: boolean };
+/**
+ * One point around the Dominus: a real step, never decoration. `from`: a craft neuron doing the
+ * step (the Navegador), whose synapse leaves from that neuron's point instead.
+ */
+export type StepPoint = { key: string; text: string; busy: boolean; ai: boolean; from?: string };
+
+/** Where a neuron is on the screen now (its point in the Memória), if it is there. */
+function centerOf(id: string): { x: number; y: number } | null {
+  const el = document.querySelector(`[data-neuron="${CSS.escape(id)}"]`);
+  const r = el?.getBoundingClientRect();
+  return r && r.width ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+}
+
+/** A craft neuron's steps go outward, away from the Dominus. */
+const CRAFT_SLOTS: [number, number][] = [
+  [0.25, 95],
+  [1.3, 80],
+  [0.8, 115],
+  [-0.4, 105],
+];
 
 // Angles (radians) and distances vary: nothing symmetric, like a real network.
 const SLOTS: [number, number][] = [
@@ -47,10 +65,27 @@ export function BuildSteps({ steps }: { steps: StepPoint[] }) {
   const cy = size.h / 2 + 12;
   // The last few, so a long build never covers the sky.
   const shown = steps.slice(-SLOTS.length);
-  const points = shown.map((s, i) => {
-    const [a, d] = SLOTS[i]!;
+  let own = 0;
+  let craft = 0;
+  const points = shown.map((s) => {
+    const origin = s.from ? centerOf(s.from) : null;
+    // Away from the Dominus: the side of the screen the craft neuron is on.
+    const side = origin ? Math.atan2(origin.y - cy, origin.x - cx) : 0;
+    const [a, d] = origin
+      ? CRAFT_SLOTS[craft++ % CRAFT_SLOTS.length]!
+      : SLOTS[own++ % SLOTS.length]!;
+    const angle = origin ? side + a : a;
+    const ox = origin?.x ?? cx;
+    const oy = origin?.y ?? cy;
     const r = Math.min(d, size.w * 0.3);
-    return { ...s, x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r * 0.8, left: Math.cos(a) < 0 };
+    return {
+      ...s,
+      ox,
+      oy,
+      x: ox + Math.cos(angle) * r,
+      y: oy + Math.sin(angle) * r * 0.8,
+      left: Math.cos(angle) < 0,
+    };
   });
 
   return (
@@ -59,8 +94,8 @@ export function BuildSteps({ steps }: { steps: StepPoint[] }) {
         {points.map((p) => (
           <g key={p.key}>
             <line
-              x1={cx}
-              y1={cy}
+              x1={p.ox}
+              y1={p.oy}
               x2={p.x}
               y2={p.y}
               stroke="white"
@@ -69,12 +104,12 @@ export function BuildSteps({ steps }: { steps: StepPoint[] }) {
             {p.busy && !size.still && (
               <circle r={2} fill="white">
                 <animateMotion
-                  dur={`${(Math.hypot(p.x - cx, p.y - cy) / 120).toFixed(2)}s`}
+                  dur={`${(Math.hypot(p.x - p.ox, p.y - p.oy) / 120).toFixed(2)}s`}
                   repeatCount="indefinite"
                   keyPoints="0;1;0"
                   keyTimes="0;0.5;1"
                   calcMode="linear"
-                  path={`M${cx},${cy} L${p.x},${p.y}`}
+                  path={`M${p.ox},${p.oy} L${p.x},${p.y}`}
                 />
               </circle>
             )}

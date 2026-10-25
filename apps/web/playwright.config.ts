@@ -94,6 +94,9 @@ export default defineConfig({
           ? ['build-phone']
           : chosen.flatMap((engine) => widths.map((x) => `${engine}-${x.name}`)),
         testMatch: /(build|devices|resilience)\.spec\.ts/,
+        // One at a time: every screen follows the open plan live, so a plan asked in one test
+        // shows on the screens of the others, and the resilience test takes the core down.
+        workers: 1,
         use: {
           ...engines.chromium,
           viewport: w.viewport,

@@ -66,9 +66,7 @@ test.describe('without a session', () => {
     await other.close();
   });
 
-  test('the session cookie is out of reach of page scripts and of other sites', async ({
-    request,
-  }) => {
+  test('the session cookie is out of reach of page scripts', async ({ request }) => {
     const res = await request.get(`/?key=${await issueLaunchKey()}`, { maxRedirects: 0 });
     expect(res.status()).toBe(303);
     expect(res.headers()['location']).toBe('/');
@@ -76,7 +74,7 @@ test.describe('without a session', () => {
     const cookie = res.headers()['set-cookie'] ?? '';
     expect(cookie).toMatch(/^cerebro_session=[\w-]{43};/);
     expect(cookie).toMatch(/HttpOnly/i);
-    expect(cookie).toMatch(/SameSite=Strict/i);
+    expect(cookie).toMatch(/SameSite=Lax/i);
   });
 
   test('a wrong key changes nothing', async ({ page }) => {

@@ -172,14 +172,28 @@ describe('openai-compatible adapter', () => {
               arguments: JSON.stringify({ path: file, content: 'hi' }),
             },
           });
+          // A research: it records a rule and also tries to write a file, which it does not have.
+          const research = (seen.body!.tools as { function: { name: string } }[]).some(
+            (t) => t.function.name === 'add_rule',
+          );
+          const rule = {
+            id: 'r',
+            type: 'function',
+            function: {
+              name: 'add_rule',
+              arguments: JSON.stringify({ text: 'Rounds to cents', source: 'observed' }),
+            },
+          };
           const message =
             turn === 0
               ? {
                   role: 'assistant',
                   content: null,
-                  tool_calls: [call('a', 'index.html'), call('b', '../out.txt')],
+                  tool_calls: research
+                    ? [rule, call('b', 'notes.txt')]
+                    : [call('a', 'index.html'), call('b', '../out.txt')],
                 }
-              : { role: 'assistant', content: 'Built it.' };
+              : { role: 'assistant', content: research ? 'Researched.' : 'Built it.' };
           res.writeHead(200, { 'content-type': 'application/json' });
           res.end(
             JSON.stringify({
@@ -263,7 +277,7 @@ describe('openai-compatible adapter', () => {
     const provider = openAiCompatible(connection(), vaultWith('sk-good'));
     expect(provider.capabilities.modes).toEqual(['text', 'agent']);
     await expect(provider.ask({ prompt: 'x', role: 'cheap', mode: 'agent' })).rejects.toThrow(
-      /only with files/,
+      /only with files or research/,
     );
     const cwd = await mkdtemp(path.join(os.tmpdir(), 'cerebro-agent-'));
     const events: AskEvent[] = [];
@@ -282,6 +296,27 @@ describe('openai-compatible adapter', () => {
       'wrote index.html',
       'error: outside the folder',
     ]);
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  it('runs a research with the research tools only, and no file tools', async () => {
+    const provider = openAiCompatible(connection(), vaultWith('sk-good'));
+    const cwd = await mkdtemp(path.join(os.tmpdir(), 'cerebro-research-'));
+    const events: AskEvent[] = [];
+    const result = await provider.ask(
+      { prompt: 'research', role: 'balanced', mode: 'agent', access: 'research', cwd },
+      (e) => events.push(e),
+    );
+    expect(result.text).toBe('Researched.');
+    const names = (seen.body!.tools as { function: { name: string } }[]).map(
+      (t) => t.function.name,
+    );
+    expect(names).toContain('open');
+    expect(names).not.toContain('write_file');
+    expect(events).toContainEqual({ type: 'tool', action: 'record', target: 'rule' });
+    expect(existsSync(path.join(cwd, 'notes.txt'))).toBe(false);
+    const research = JSON.parse(readFileSync(path.join(cwd, 'research.json'), 'utf8'));
+    expect(research.rules).toEqual([{ text: 'Rounds to cents', source: 'observed' }]);
     await rm(cwd, { recursive: true, force: true });
   });
 });

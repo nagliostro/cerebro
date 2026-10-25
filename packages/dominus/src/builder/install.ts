@@ -17,9 +17,12 @@ const SERVED = new Set([
   '.jpeg',
   '.webp',
   '.woff2',
+  // The license of each library the application carries.
+  '.txt',
 ]);
 const MAX_FILES = 200;
-const MAX_BYTES = 5 * 1024 * 1024;
+/** With its libraries (a PDF one can pass 1 MB), still small next to the Cerebro. */
+const MAX_BYTES = 12 * 1024 * 1024;
 
 export class BuildCheckError extends Error {}
 

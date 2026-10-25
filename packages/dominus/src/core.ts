@@ -13,12 +13,21 @@ import { clockState, nowMs, setOffset, syncClock } from './clock.ts';
 import { Contracts, ContractError } from './contract.ts';
 import { Graph, GraphError } from './graph.ts';
 import { corePaths } from './paths.ts';
+import {
+  ConnectionError,
+  listConnections,
+  PRESETS,
+  removeConnection,
+  upsertConnection,
+} from './providers/connections.ts';
 import { loadProviders } from './providers/index.ts';
 import type { AiProvider, AskMode, HealthCheck, ModelRole } from './providers/types.ts';
 import { buildEstimate, guard } from './quota/guard.ts';
 import { route as pickRoute, type Candidate, type RouteRequest } from './quota/router.ts';
 import { windowStatus } from './quota/status.ts';
 import { Queue, toJob, type JobRow, type NewJob } from './queue.ts';
+import { readSettings, SettingsError, writeSettings } from './settings.ts';
+import { createVault } from './vault.ts';
 import { isAskPayload, jobTypes, type AskPayload } from './worker.ts';
 
 // The Dominus core: an event bus, a durable queue and a supervisor that runs each AI job in a
@@ -228,6 +237,32 @@ function stats() {
 
 // Checking a provider can start a CLI or call the internet: the answer is kept for a while.
 const health = new Map<string, { at: number; check: HealthCheck }>();
+const vault = createVault();
+
+/** A run as Settings → Runs lists it: what, where, how it ended and what it cost; no prompt. */
+function runOf(row: JobRow) {
+  const job = toJob(row);
+  const p = (job.payload ?? {}) as Partial<AskPayload>;
+  const r = (job.result ?? {}) as {
+    costUsd?: number | null;
+    inputTokens?: number;
+    outputTokens?: number;
+  };
+  return {
+    id: row.id,
+    type: row.type,
+    kind: row.type === 'ask' ? (p.kind ?? null) : row.type,
+    provider: p.provider ?? null,
+    role: p.role ?? null,
+    status: row.status,
+    error: row.error ? row.error.slice(0, 200) : null,
+    costUsd: typeof r.costUsd === 'number' ? r.costUsd : null,
+    tokens: (r.inputTokens ?? 0) + (r.outputTokens ?? 0) || null,
+    createdAt: row.created_at,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at,
+  };
+}
 async function providerList(fresh: boolean) {
   const providers = [...loadProviders(paths).values()];
   return Promise.all(
@@ -304,6 +339,12 @@ const builder = new Builder({
       maxAttempts: opts.maxAttempts,
     });
     const id = queue.enqueue(job);
+    emit('job.queued', { id });
+    dispatch();
+    return id;
+  },
+  async enqueueJob(type, payload, opts) {
+    const id = queue.enqueue(validJob({ type, payload, ...opts }));
     emit('job.queued', { id });
     dispatch();
     return id;
@@ -453,6 +494,16 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     if (req.method === 'GET' && what === 'permissions') return json(200, contracts.permissions(id));
     if (req.method === 'POST') {
       const b = (await readBody(req)) as Record<string, unknown>;
+      // Settings → Neurons: rename, change its role, or remove it for good.
+      if (what === 'edit') {
+        graph.updateNeuron(id, { name: b.name, role: b.role });
+        emit('graph.changed', {});
+        return json(200, graph.neuron(id));
+      }
+      if (what === 'remove') {
+        await builder.remove(id);
+        return json(200, { ok: true });
+      }
       if (what === 'data') return json(200, contracts.run(id, b.collection, b.op, b.input));
       if (what === 'call') {
         // One neuron asks another: only what the owner allowed; it counts as a conversation.
@@ -479,11 +530,42 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     }
     return json(404, { error: 'not found' });
   }
+  // Settings: the owner's options, the API connections (keys only to the vault) and the runs.
+  if (req.method === 'GET' && url.pathname === '/settings')
+    return json(200, readSettings(paths.dir));
+  if (req.method === 'POST' && url.pathname === '/settings')
+    return json(
+      200,
+      await writeSettings(paths.dir, (await readBody(req)) as Record<string, unknown>),
+    );
+  if (req.method === 'GET' && url.pathname === '/connections')
+    return json(200, {
+      vault: await vault.available(),
+      presets: PRESETS,
+      list: await listConnections(paths.connections, vault),
+    });
+  if (req.method === 'POST' && url.pathname === '/connections') {
+    const c = await upsertConnection(
+      paths.connections,
+      vault,
+      (await readBody(req)) as Record<string, unknown>,
+    );
+    health.delete(c.id);
+    return json(200, { id: c.id });
+  }
+  const connMatch = url.pathname.match(/^\/connections\/([a-z0-9-]{1,40})\/remove$/);
+  if (req.method === 'POST' && connMatch) {
+    health.delete(connMatch[1]!);
+    return json(200, { ok: await removeConnection(paths.connections, vault, connMatch[1]!) });
+  }
+  if (req.method === 'GET' && url.pathname === '/runs') return json(200, queue.list(60).map(runOf));
   // Building neurons: a request becomes a plan, an accepted plan becomes a neuron.
   if (req.method === 'POST' && url.pathname === '/plans') {
     const b = (await readBody(req)) as Record<string, unknown>;
     return json(201, { id: await builder.start(b) });
   }
+  if (req.method === 'GET' && url.pathname === '/plans/history')
+    return json(200, builder.history());
   if (req.method === 'GET' && url.pathname === '/plans/current')
     return json(200, builder.current(url.searchParams.get('target') || null));
   const planMatch = url.pathname.match(
@@ -498,7 +580,7 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     if (req.method === 'POST' && action) {
       const b = (await readBody(req)) as Record<string, unknown>;
       if (action === 'answer') await builder.answer(id, b);
-      else if (action === 'accept') await builder.accept(id);
+      else if (action === 'accept') await builder.accept(id, b);
       else if (action === 'reject') builder.reject(id);
       else if (action === 'undo') await builder.undo(id);
       else builder.cancel(id);
@@ -521,7 +603,9 @@ const server = createServer((req, res) => {
       e instanceof BadRequest ||
       e instanceof GraphError ||
       e instanceof ContractError ||
-      e instanceof BuildError;
+      e instanceof BuildError ||
+      e instanceof SettingsError ||
+      e instanceof ConnectionError;
     if (!bad) console.error('dominus core:', e);
     if (!res.headersSent) res.writeHead(bad ? 400 : 500, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ error: bad ? e.message : 'internal error' }));
