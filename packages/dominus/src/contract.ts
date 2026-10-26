@@ -35,6 +35,15 @@ const MAX_LIST = 500;
 
 export class ContractError extends Error {}
 
+/** A site a neuron may reach (allowed) or asks to (requested), and its accesses. */
+export type Site = {
+  host: string;
+  why: string;
+  status: 'allowed' | 'requested';
+  hits: number;
+  lastAt: number | null;
+};
+
 const typeOf = (v: unknown) => (v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v);
 
 export class Contracts {
@@ -60,6 +69,16 @@ export class Contracts {
         collection TEXT NOT NULL,
         grant_ TEXT NOT NULL,
         PRIMARY KEY (target, caller, collection, grant_)
+      );
+      CREATE TABLE IF NOT EXISTS network (
+        neuron TEXT NOT NULL,
+        host TEXT NOT NULL,
+        why TEXT NOT NULL,
+        status TEXT NOT NULL,
+        hits INTEGER NOT NULL DEFAULT 0,
+        last_at INTEGER,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (neuron, host)
       );
     `);
   }
@@ -218,9 +237,59 @@ export class Contracts {
     this.db.prepare(`DELETE FROM permissions WHERE target = ?`).run(target);
   }
 
-  /** A neuron removed: its data, and every permission to it and from it. */
+  /** A neuron removed: its data, every permission to it and from it, and its sites. */
   forget(neuron: string) {
     this.db.prepare(`DELETE FROM records WHERE neuron = ?`).run(neuron);
     this.db.prepare(`DELETE FROM permissions WHERE target = ? OR caller = ?`).run(neuron, neuron);
+    this.db.prepare(`DELETE FROM network WHERE neuron = ?`).run(neuron);
+  }
+
+  // ---- The internet of a neuron: the sites it may reach, each with why, and how often it did.
+
+  /** The sites of a neuron: allowed, or asking to be (the owner decides). */
+  sites(neuron: string): Site[] {
+    return this.db
+      .prepare(
+        `SELECT host, why, status, hits, last_at AS lastAt FROM network WHERE neuron = ?
+         ORDER BY status DESC, host`,
+      )
+      .all(neuron) as Site[];
+  }
+
+  /** The owner allows a site (with the plan, or from the globe). */
+  allowSite(neuron: string, host: string, why: string) {
+    this.db
+      .prepare(
+        `INSERT INTO network (neuron, host, why, status, created_at) VALUES (?, ?, ?, 'allowed', ?)
+         ON CONFLICT (neuron, host) DO UPDATE SET status = 'allowed'`,
+      )
+      .run(neuron, host, why.slice(0, 200), nowMs());
+  }
+
+  /** The application asked for a site it may not reach yet: it waits for the owner. */
+  requestSite(neuron: string, host: string, why: string) {
+    this.db
+      .prepare(
+        `INSERT OR IGNORE INTO network (neuron, host, why, status, created_at)
+         VALUES (?, ?, ?, 'requested', ?)`,
+      )
+      .run(neuron, host, why.slice(0, 200), nowMs());
+  }
+
+  removeSite(neuron: string, host: string) {
+    this.db.prepare(`DELETE FROM network WHERE neuron = ? AND host = ?`).run(neuron, host);
+  }
+
+  allowedSite(neuron: string, host: string) {
+    return !!this.db
+      .prepare(`SELECT 1 FROM network WHERE neuron = ? AND host = ? AND status = 'allowed'`)
+      .get(neuron, host);
+  }
+
+  /** One access of the application to a site, for the globe. */
+  hit(neuron: string, host: string) {
+    this.db
+      .prepare(`UPDATE network SET hits = hits + 1, last_at = ? WHERE neuron = ? AND host = ?`)
+      .run(nowMs(), neuron, host);
   }
 }

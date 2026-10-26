@@ -102,7 +102,7 @@ function Source({ source, observed }: { source: string; observed: string }) {
       href={source}
       target="_blank"
       rel="noopener noreferrer"
-      className="whitespace-nowrap underline decoration-white/25 underline-offset-[3px] hover:text-(--cb-highlight)"
+      className="underline decoration-white/25 underline-offset-[3px] hover:text-(--cb-highlight)"
     >
       {host}
     </a>
@@ -116,12 +116,12 @@ function Cases({ cases, more }: { cases: Research['cases']; more: string }) {
   const row = (c: Research['cases'][number], i: number) => (
     <tr key={i} className="border-t border-white/6">
       {inputs.map((k, j) => (
-        <td key={k} className={`py-[3px] ${j ? 'text-right' : 'text-left'}`}>
+        <td key={k} className={`py-[3px] align-top ${j ? 'text-right' : 'text-left'}`}>
           {c.input[k] ?? ''}
         </td>
       ))}
       {outputs.map((k) => (
-        <td key={k} className="py-[3px] text-right text-(--cb-highlight)">
+        <td key={k} className="py-[3px] text-right align-top text-(--cb-highlight)">
           {c.output[k] ?? ''}
         </td>
       ))}
@@ -140,7 +140,7 @@ function Cases({ cases, more }: { cases: Research['cases']; more: string }) {
   );
   return (
     <>
-      <table className="w-full border-collapse tabular-nums">
+      <table className="w-full table-fixed border-collapse tabular-nums">
         {head}
         <tbody>{cases.slice(0, 4).map(row)}</tbody>
       </table>
@@ -149,7 +149,7 @@ function Cases({ cases, more }: { cases: Research['cases']; more: string }) {
           <summary className="w-fit cursor-pointer list-none py-1.5 group-open:hidden hover:text-(--cb-highlight) [&::-webkit-details-marker]:hidden">
             {more}
           </summary>
-          <table className="w-full border-collapse tabular-nums">
+          <table className="w-full table-fixed border-collapse tabular-nums">
             <tbody>{cases.slice(4).map((c, i) => row(c, i + 4))}</tbody>
           </table>
         </details>
@@ -231,10 +231,13 @@ export function PlanPanel({
 
   return (
     <section
+      data-avoid
       aria-label={m.plan}
       className="fixed inset-x-2 bottom-2 z-50 flex max-h-[78dvh] animate-[cb-pop_0.3s_cubic-bezier(0.2,0,0,1)] flex-col rounded-[10px] bg-[oklch(0.13_0.006_265/0.55)] shadow-[inset_0_0_0_1px_var(--cb-outline)] backdrop-blur-md min-[820px]:left-1/2 min-[820px]:w-[40rem] min-[820px]:-translate-x-1/2 xl:top-6 xl:right-6 xl:bottom-6 xl:left-auto xl:max-h-none xl:w-96 xl:translate-x-0"
     >
-      <div className="grid flex-1 [scrollbar-width:thin] [scrollbar-color:oklch(1_0_0/16%)_transparent] content-start gap-[18px] overflow-y-auto px-5 pt-5 pb-2 [mask:linear-gradient(#000_calc(100%-28px),transparent)]">
+      {/* One column that never grows past the panel: long words (links, names, values) break
+          inside it, and only the vertical scroll is left. */}
+      <div className="grid min-w-0 flex-1 [scrollbar-width:thin] [scrollbar-color:oklch(1_0_0/16%)_transparent] grid-cols-[minmax(0,1fr)] content-start gap-[18px] overflow-x-hidden overflow-y-auto px-5 pt-5 pb-2 [overflow-wrap:anywhere] [mask:linear-gradient(#000_calc(100%-28px),transparent)]">
         <div className="flex items-center gap-2.5">
           {asking ? (
             <span
@@ -445,6 +448,19 @@ export function PlanPanel({
                   );
                 })}
                 <p>{m.linksNote(p.name)}</p>
+              </Section>
+            )}
+            {p.internet?.length > 0 && (
+              <Section title={m.internet}>
+                <div className="grid grid-cols-[auto_1fr] gap-x-2.5">
+                  {p.internet.map((s) => (
+                    <div key={s.host} className="contents">
+                      <span className="text-(--cb-highlight)">{s.host}</span>
+                      <span>{s.why}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-1.5">{m.internetNote(p.name)}</p>
               </Section>
             )}
             {p.libraries?.length > 0 && (

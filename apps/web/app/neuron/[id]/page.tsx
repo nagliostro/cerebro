@@ -2,8 +2,9 @@ import { coreRequest } from '@/lib/server/core';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 
-import { Construction } from '@/components/construction';
+import { NetworkPanel, type Site, type Visited } from '@/components/network-panel';
 import { NeuronFrame } from '@/components/neuron-frame';
+import { NeuronScreen } from '@/components/neuron-screen';
 import { PermissionsPanel } from '@/components/permissions-panel';
 import { TopMenu } from '@/components/top-menu';
 import { pickLocale, t } from '@/lib/i18n';
@@ -19,9 +20,26 @@ type Permission = {
   grants: ('view' | 'create' | 'update' | 'delete')[];
 };
 
-// A neuron's screen: at the top only its dot and name, and the key to its permissions; below, its
-// application fills the screen, isolated, over the same sky; at the foot, the Dominus box to ask
-// for a change (or for its first application). The menu leads back to the Memória.
+// A neuron's screen: at the top its dot and name, the key to its permissions and the pencil to its
+// adjustments; below, its application fills the screen, isolated, over the same sky. The menu
+// leads back to the Memória.
+/** The Navegador's sites: those its researches opened, and in how many of them. */
+async function researchSites(id: string): Promise<Visited[]> {
+  if (id !== 'navegador') return [];
+  const records = await coreRequest<{ data: { sites?: unknown } }[]>(
+    'POST',
+    `/neurons/${id}/data`,
+    { collection: 'researches', op: 'list' },
+  ).catch(() => []);
+  const count = new Map<string, number>();
+  for (const r of records)
+    for (const host of Array.isArray(r.data.sites) ? r.data.sites : [])
+      if (typeof host === 'string') count.set(host, (count.get(host) ?? 0) + 1);
+  return [...count]
+    .map(([host, researches]) => ({ host, researches }))
+    .sort((a, b) => b.researches - a.researches);
+}
+
 export default async function NeuronPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!validNeuronId(id)) notFound();
@@ -30,12 +48,14 @@ export default async function NeuronPage({ params }: { params: Promise<{ id: str
 
   const neuron = await coreRequest<Neuron>('GET', `/neurons/${id}`).catch(() => null);
   if (!neuron) notFound();
-  const [contract, permissions, graph, built, plan] = await Promise.all([
+  const [contract, permissions, graph, built, plan, sites, visited] = await Promise.all([
     coreRequest<Contract>('GET', `/neurons/${id}/contract`),
     coreRequest<Permission[]>('GET', `/neurons/${id}/permissions`),
     coreRequest<{ neurons: Neuron[] }>('GET', '/graph'),
     hasApp(id),
     currentPlan(id),
+    coreRequest<Site[]>('GET', `/neurons/${id}/network`).catch(() => []),
+    researchSites(id),
   ]);
   // index.html by name: a folder URL ("/") would be redirected without the slash, and the
   // application's relative files would then lose the token.
@@ -50,39 +70,40 @@ export default async function NeuronPage({ params }: { params: Promise<{ id: str
         ]}
         labels={m.menu}
       />
-      <header className="mx-auto mt-5 flex w-[min(100%-32px,760px)] items-center gap-2">
-        <h1 className="mr-auto flex items-center gap-2.5 text-(--cb-highlight)">
-          <span
-            aria-hidden
-            className="size-2 rounded-full"
-            style={{ background: neuron.color, boxShadow: `0 0 12px ${neuron.color}` }}
-          />
-          {neuron.name}
-        </h1>
-        <PermissionsPanel
-          neuron={id}
-          collections={contract.collections.map((c) => c.name)}
-          others={graph.neurons
-            .filter((n) => n.id !== id)
-            .map((n) => ({ id: n.id, name: n.name, color: n.color }))}
-          initial={permissions}
-          labels={m.permissions(neuron.name)}
-        />
-      </header>
-      {src ? (
-        <NeuronFrame id={id} src={src} title={m.appTitle(neuron.name)} />
-      ) : (
-        <p className="mx-auto mt-16 w-[min(100%-32px,760px)] text-center">
-          {m.appMissing(neuron.name)}
-        </p>
-      )}
-      <Construction
-        key={id}
+      <NeuronScreen
         locale={locale}
+        neuron={neuron}
         others={graph.neurons.map((n) => ({ id: n.id, name: n.name, color: n.color }))}
-        target={{ id, name: neuron.name }}
         initial={plan}
-      />
+        tools={
+          <>
+            <NetworkPanel
+              neuron={id}
+              name={neuron.name}
+              initial={sites}
+              visited={visited}
+              locale={locale}
+            />
+            <PermissionsPanel
+              neuron={id}
+              collections={contract.collections.map((c) => c.name)}
+              others={graph.neurons
+                .filter((n) => n.id !== id)
+                .map((n) => ({ id: n.id, name: n.name, color: n.color }))}
+              initial={permissions}
+              labels={m.permissions(neuron.name)}
+            />
+          </>
+        }
+      >
+        {src ? (
+          <NeuronFrame id={id} src={src} title={m.appTitle(neuron.name)} />
+        ) : (
+          <p className="mx-auto mt-16 w-[min(100%-32px,760px)] text-center">
+            {m.appMissing(neuron.name)}
+          </p>
+        )}
+      </NeuronScreen>
     </div>
   );
 }

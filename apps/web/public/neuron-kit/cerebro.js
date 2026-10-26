@@ -1,5 +1,5 @@
 // The bridge between a neuron's application and the Cerebro. The application runs isolated
-// (sandboxed, no cookies, no storage, no network): everything goes through messages to the
+// (sandboxed, no cookies, no storage, no network of its own): everything goes through messages to the
 // Cerebro page that holds it, which checks and forwards them. There is no way here to change
 // permissions or reach anything but this neuron's data and what the owner allowed.
 (() => {
@@ -40,6 +40,14 @@
     /** Asks another neuron, through its contract: cerebro.neurons.call('agenda', 'eventos.list'). */
     neurons: Object.freeze({
       call: (target, operation, input) => ask({ kind: 'call', target, operation, input }),
+    }),
+    /**
+     * Live data from a public site the owner allowed for this neuron (its plan lists them):
+     * cerebro.net.get(url) → { status, type, body }. Only GET, only those sites; one not allowed
+     * yet asks the owner (in the globe) and fails until they allow it.
+     */
+    net: Object.freeze({
+      get: (url, why) => ask({ kind: 'net', url: String(url), why: why ? String(why) : '' }),
     }),
     /** A short notice at the foot of the Cerebro's screen. */
     notify: (text) => parent.postMessage({ cerebro: 'notify', text: String(text) }, '*'),

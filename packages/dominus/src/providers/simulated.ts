@@ -67,6 +67,11 @@ function plan(prompt: string) {
     checks: ['An item added shows in the list'],
     limits: [],
     existing: null,
+    // [net:<host>] names a public site it reads live data from, to test the globe.
+    internet: [...request.matchAll(/\[net:([a-z0-9.-]+)\]/g)].map((m) => ({
+      host: m[1],
+      why: 'the rate of the day',
+    })),
     // [lib:<package>] names a free library to carry, to test the registry check and the vendoring.
     libraries: [...request.matchAll(/\[lib:([a-z0-9@/._-]+)\]/g)].map((m) => ({
       name: m[1],
@@ -130,6 +135,14 @@ async function research(req: AskRequest, emit: (e: AskEvent) => void) {
     if (kind) await record(req.cwd!, kind, args as Record<string, unknown>);
   };
   await step({ type: 'tool', action: 'browse', target: host });
+  // [searches:<n>] makes it search n times with long queries, to test a crowded sky.
+  const searches = Number(req.prompt.match(/\[searches:(\d{1,2})\]/)?.[1] ?? 0);
+  for (let i = 1; i <= searches; i++)
+    await step({
+      type: 'tool',
+      action: 'search',
+      target: `como funciona a categoria de despesas ${i} no aplicativo, com orçamento por mês`,
+    });
   if (req.prompt.includes('[ask-which]') && !answered) {
     await step({ type: 'tool', action: 'record', target: 'question' }, 'question', {
       question: 'Which feature should I copy?',

@@ -14,8 +14,8 @@ export const languageOf = (locale: string) => LANGUAGES[locale] ?? 'English';
 
 const NEURON = `In the Cerebro, a neuron is one area or goal of the owner's life, with a small application of
 its own. The application is plain HTML, CSS and JavaScript that runs isolated: a sandboxed frame
-with no network at all, no cookies, no storage and no external files (CDNs and remote fonts are
-blocked). It keeps its data through the Cerebro, in collections of JSON records (for example
+with no network of its own, no cookies, no storage and no external files (CDNs and remote fonts are
+blocked); it may read only the public sites its plan lists, through the Cerebro. It keeps its data through the Cerebro, in collections of JSON records (for example
 "expenses"), and may read another neuron's collection only if the owner allows it. The numbers,
 dates and sums are computed by the application's own code; a finished neuron spends no AI.`;
 
@@ -33,6 +33,9 @@ Rules:
   One with no application yet does nothing: it may be the right place, but say "existing" only
   when its name clearly is the same area (the owner can then build its application).
 - Propose a link only to an existing neuron and collection listed below, and only if it helps.
+- Internet only when the application needs live data a person cannot type (exchange rates, a
+  public index, the weather) from a free public API with no key: list each site in "internet"
+  with why. Otherwise none: the application works offline.
 - Do not reinvent the wheel: when a free, well-known library does the hard part (reading PDFs,
   charts, dates, spreadsheets, maps, Markdown...), name it in "libraries" (its npm package). The
   Cerebro checks each one (permissive license, widely used, runs in a browser) and the neuron
@@ -53,7 +56,8 @@ Answer with one JSON object and nothing else:
   "checks": string[],               // how the owner can tell it works, 1 to 5
   "limits": string[],               // what it will not do yet, 0 to 3
   "existing": string | null,
-  "libraries": [{ "name": string, "why": string }]  // free npm libraries it should carry, 0 to 5
+  "libraries": [{ "name": string, "why": string }], // free npm libraries it should carry, 0 to 5
+  "internet": [{ "host": string, "why": string }]   // public sites it reads live data from, 0 to 3
 }`;
 
 /**
@@ -274,6 +278,7 @@ export function buildPrompt(input: {
     links: { neuron: string; collection: string; why: string }[];
     checks: string[];
     limits: string[];
+    internet?: { host: string; why: string }[];
   };
   request: string;
   /** Adjusting: the current files are already in the folder. */
@@ -332,6 +337,15 @@ export function buildPrompt(input: {
       ? [
           'It may read (cerebro.neurons.call):',
           ...p.links.map((l) => `- ${l.neuron} ${l.collection}.list: ${l.why}`),
+        ]
+      : []),
+    ...(p.internet?.length
+      ? [
+          'It may read these public sites, only through the bridge (never fetch or XHR; those are',
+          'blocked): const r = await cerebro.net.get(url) gives { status, type, body } (body is text;',
+          'JSON.parse it when type is JSON). Nothing personal in a URL. Show a clear message and keep',
+          'working when a site does not answer.',
+          ...p.internet.map((s) => `- ${s.host}: ${s.why}`),
         ]
       : []),
     'It works when:',

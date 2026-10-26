@@ -38,6 +38,7 @@ export function TopMenu({
 
   return (
     <nav
+      data-avoid
       aria-label={labels.nav}
       className={`mx-auto mt-4 flex w-fit items-center rounded-full p-1 transition-[background-color,box-shadow] duration-500 ${
         open ? 'bg-white/6 ring-1 ring-white/8 backdrop-blur-md' : ''

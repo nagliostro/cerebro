@@ -23,11 +23,12 @@ test('the menu leads to Settings, and every section opens and passes WCAG 2.2 AA
   await page.goto('/');
   await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('link', { name: 'Configurações' }).click();
-  await expect(page).toHaveURL('/settings');
+  await expect(page).toHaveURL('/settings', { timeout: 15_000 });
   const nav = page.getByRole('navigation', { name: 'Seções de Configurações' });
   for (const [name, url] of SECTIONS) {
     await nav.getByRole('link', { name }).click();
-    await expect(page).toHaveURL(url);
+    // Devices asks Tailscale on the computer: it can take a moment on a busy machine.
+    await expect(page).toHaveURL(url, { timeout: 15_000 });
     await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
     await expect(nav.getByRole('link', { name })).toHaveAttribute('aria-current', 'page');
     expect((await new AxeBuilder({ page }).withTags(tags).analyze()).violations, name).toEqual([]);

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { t, type Locale, type Messages } from '@/lib/i18n';
 
+import { AdjustPanel } from './adjust-panel';
 import { BackgroundSynapses } from './background-synapses';
 import { BuildSteps, type StepPoint } from './build-steps';
 import { DominusBox } from './dominus-box';
@@ -146,6 +147,7 @@ export function Construction({
   target,
   initial,
   memory,
+  panel,
 }: {
   locale: Locale;
   others: Other[];
@@ -153,10 +155,14 @@ export function Construction({
   target?: { id: string; name: string };
   initial: PlanView | null;
   memory?: MemoryProps;
+  /** A neuron's screen: the box and the work live in its adjustments window, opened by the pencil. */
+  panel?: { open: boolean; setOpen: (open: boolean) => void };
 }) {
   const m = t(locale);
   const b = m.build;
   const router = useRouter();
+  const docked = !!target && !!panel;
+  const [undone, setUndone] = useState(0);
   const [plan, setPlan] = useState<PlanView | null>(initial);
   const [secs, setSecs] = useState(0);
   const [problem, setProblem] = useState<string | null>(null);
@@ -237,6 +243,12 @@ export function Construction({
     };
   }, [load, adopt, router]);
 
+  // On a neuron's screen, work going on opens the adjustments window: that is where it shows.
+  const setPanel = panel?.setOpen;
+  useEffect(() => {
+    if (docked && running) setPanel?.(true);
+  }, [docked, running, setPanel]);
+
   // While it runs, count the seconds.
   useEffect(() => {
     if (!running) return;
@@ -278,6 +290,20 @@ export function Construction({
     } catch (e) {
       setProblem(problemText((e as Error).message, b));
       return false;
+    }
+  }
+
+  /** Takes back the last adjustment (from the adjustments window): the previous one returns. */
+  async function undoPlan(id: string) {
+    setProblem(null);
+    try {
+      await call(`/api/plans/${id}/undo`, {});
+      setUndone((n) => n + 1);
+      // The one on screen now says it was undone.
+      if (planId === id) await load(id);
+      router.refresh();
+    } catch (e) {
+      setProblem(problemText((e as Error).message, b));
     }
   }
 
@@ -349,7 +375,8 @@ export function Construction({
           )}
         </p>
         <div className="flex gap-2">
-          {target && plan.adjusting && (
+          {/* In the adjustments window, Undo is on the request in its list. */}
+          {target && plan.adjusting && !docked && (
             <button
               type="button"
               onClick={() => void act('undo')}
@@ -426,12 +453,13 @@ export function Construction({
           dominusColor={plan?.status === 'building' ? (plan.color ?? undefined) : undefined}
           aside={open}
         >
-          {plan && (running || open) && <BuildSteps steps={points} />}
+          {plan && (running || open) && <BuildSteps steps={points} aside={open} />}
         </Memory>
       )}
 
-      {caption && !open && (
+      {caption && !open && !docked && (
         <div
+          data-avoid
           role="status"
           aria-live="polite"
           className="fixed bottom-[104px] left-1/2 z-40 grid w-[min(100%-32px,34rem)] -translate-x-1/2 justify-items-center gap-1.5 text-center"
@@ -440,17 +468,42 @@ export function Construction({
         </div>
       )}
 
-      <DominusBox
-        label={target ? b.askAdjust(target.name) : b.ask}
-        sendLabel={b.send}
-        stopLabel={b.stop}
-        busy={running}
-        onSend={start}
-        onStop={() => void stop()}
-        className={
-          open ? 'max-xl:hidden xl:left-[calc(50%-200px)] xl:w-[min(100%-480px,40rem)]' : ''
-        }
-      />
+      {!docked && (
+        <DominusBox
+          label={target ? b.askAdjust(target.name) : b.ask}
+          sendLabel={b.send}
+          stopLabel={b.stop}
+          busy={running}
+          onSend={start}
+          onStop={() => void stop()}
+          className={
+            open ? 'max-xl:hidden xl:left-[calc(50%-200px)] xl:w-[min(100%-480px,40rem)]' : ''
+          }
+        />
+      )}
+
+      {docked && panel.open && !(plan && open && plan.plan) && (
+        <AdjustPanel
+          neuron={target.id}
+          name={target.name}
+          locale={locale}
+          live={caption}
+          refresh={`${plan?.id}-${plan?.status}-${undone}`}
+          onUndo={(id) => void undoPlan(id)}
+          onClose={() => panel.setOpen(false)}
+          box={
+            <DominusBox
+              docked
+              label={b.askAdjust(target.name)}
+              sendLabel={b.send}
+              stopLabel={b.stop}
+              busy={running}
+              onSend={start}
+              onStop={() => void stop()}
+            />
+          }
+        />
+      )}
 
       {plan && open && plan.plan && (
         <PlanPanel

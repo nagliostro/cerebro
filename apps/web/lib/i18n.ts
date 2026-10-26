@@ -39,6 +39,27 @@ const messages = {
     },
     appTitle: (name: string) => `Aplicação ${name}`,
     appMissing: (name: string) => `A aplicação de ${name} ainda não foi construída.`,
+    network: {
+      button: (name: string) => `Internet de ${name}`,
+      buttonAsking: (name: string) => `Internet de ${name}: um site pede acesso`,
+      title: (name: string) => `Internet de ${name}`,
+      note: 'Os únicos sites que a aplicação pode ler, sempre pelo Cerebro. Só você libera.',
+      visitedNote:
+        'Os sites que o Navegador abriu nas pesquisas, numa janela própria, sem as suas contas.',
+      asking: 'Pede acesso',
+      never: 'Liberado · ainda não acessado',
+      hits: (n: number, when: string) =>
+        `${n} ${n === 1 ? 'acesso' : 'acessos'}${when ? ` · o último em ${when}` : ''}`,
+      researches: (n: number) => `Em ${n} ${n === 1 ? 'pesquisa' : 'pesquisas'}`,
+      allow: 'Liberar',
+      remove: 'Tirar',
+    },
+    adjust: {
+      open: (name: string) => `Ajustar ${name}`,
+      title: (name: string) => `Ajustes de ${name}`,
+      none: 'Nenhum pedido ainda. Escreva abaixo o que mudar.',
+      close: 'Fechar os ajustes',
+    },
     permissions: (name: string) => ({
       button: `Permissões: quem pode pedir coisas a ${name}`,
       title: `Quem pode pedir coisas a ${name}`,
@@ -188,6 +209,9 @@ const messages = {
         'Numa janela própria do Navegador, sem as suas contas e sem acesso aos seus arquivos.',
       observedSource: 'observado',
       researchCost: (cost: string) => `Pesquisar e planejar custou ${cost}`,
+      internet: 'Internet',
+      internetNote: (name: string) =>
+        `Ao construir, ${name} pode ler só estes sites, pelo Cerebro. Você tira pelo globo.`,
       libraries: 'Bibliotecas livres que vão dentro dele',
       library: (version: string, license: string, weekly: string) =>
         `${version} · ${license} · ${weekly} downloads por semana`,
@@ -221,8 +245,10 @@ const messages = {
         about: 'Sobre',
         version: 'versão',
         data: 'seus dados',
-        language: 'idioma',
-        languageValue: 'o do navegador',
+        language: 'Idioma',
+        languageLead:
+          'O idioma das telas neste aparelho. Os neurônios já construídos em outro idioma são traduzidos pelo Dominus (um ajuste de cada, com custo); os novos seguem a língua em que você pede.',
+        languages: { auto: 'Automático · o do navegador', 'pt-BR': 'Português', en: 'English' },
       },
       connections: {
         lead: 'As IAs que o Dominus usa. A assinatura entra pelo programa oficial; as APIs, por uma chave que fica no cofre do sistema.',
@@ -359,6 +385,7 @@ const messages = {
       cancel: 'Cancelar',
       needRemote: 'Para parear um celular, ligue antes o acesso de fora de casa.',
       onlyHere: 'O pareamento e o acesso remoto se mudam no próprio computador do Cerebro.',
+      checkingRemote: 'Conferindo o Tailscale…',
       remoteTitle: 'Acesso de fora de casa',
       remote: {
         'not-installed':
@@ -422,6 +449,27 @@ const messages = {
     },
     appTitle: (name: string) => `${name} application`,
     appMissing: (name: string) => `The ${name} application has not been built yet.`,
+    network: {
+      button: (name: string) => `Internet of ${name}`,
+      buttonAsking: (name: string) => `Internet of ${name}: a site asks for access`,
+      title: (name: string) => `Internet of ${name}`,
+      note: 'The only sites the application may read, always through the Cerebro. Only you allow them.',
+      visitedNote:
+        'The sites the Navegador opened in its researches, in a window of its own, without your accounts.',
+      asking: 'Asks for access',
+      never: 'Allowed · not reached yet',
+      hits: (n: number, when: string) =>
+        `${n} ${n === 1 ? 'access' : 'accesses'}${when ? ` · the last on ${when}` : ''}`,
+      researches: (n: number) => `In ${n} ${n === 1 ? 'research' : 'researches'}`,
+      allow: 'Allow',
+      remove: 'Take away',
+    },
+    adjust: {
+      open: (name: string) => `Adjust ${name}`,
+      title: (name: string) => `Adjustments of ${name}`,
+      none: 'No requests yet. Write below what to change.',
+      close: 'Close the adjustments',
+    },
     permissions: (name: string) => ({
       button: `Permissions: who may ask ${name} for things`,
       title: `Who may ask ${name} for things`,
@@ -571,6 +619,9 @@ const messages = {
         "In the Navegador's own window, without your accounts and without access to your files.",
       observedSource: 'observed',
       researchCost: (cost: string) => `Researching and planning cost ${cost}`,
+      internet: 'Internet',
+      internetNote: (name: string) =>
+        `Once built, ${name} may read only these sites, through the Cerebro. You take them away in the globe.`,
       libraries: 'Free libraries it will carry',
       library: (version: string, license: string, weekly: string) =>
         `${version} · ${license} · ${weekly} downloads a week`,
@@ -604,8 +655,10 @@ const messages = {
         about: 'About',
         version: 'version',
         data: 'your data',
-        language: 'language',
-        languageValue: "the browser's",
+        language: 'Language',
+        languageLead:
+          'The language of the screens on this device. Neurons already built in another language are translated by the Dominus (one adjustment each, with a cost); new ones follow the language you ask in.',
+        languages: { auto: "Automatic · the browser's", 'pt-BR': 'Português', en: 'English' },
       },
       connections: {
         lead: "The AIs the Dominus uses. A subscription comes in through its official program; an API, through a key kept in the system's vault.",
@@ -747,6 +800,7 @@ const messages = {
       cancel: 'Cancel',
       needRemote: 'To pair a phone, first turn on access from outside home.',
       onlyHere: 'Pairing and remote access are changed on the Cerebro computer itself.',
+      checkingRemote: 'Checking Tailscale…',
       remoteTitle: 'Access from outside home',
       remote: {
         'not-installed':

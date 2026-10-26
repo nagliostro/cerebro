@@ -58,13 +58,14 @@ body {
   }
 }
 
-@keyframes twinkle {
+/* A layer of twinkling stars fades as a whole (on the compositor, no repaint). */
+@keyframes twinkle-layer {
   0%,
   100% {
-    opacity: var(--o, 0.2);
+    opacity: 1;
   }
   50% {
-    opacity: 0.04;
+    opacity: 0.2;
   }
 }
 
@@ -79,20 +80,18 @@ body {
 
 /*
  * The Dominus box: a line of gold light runs round its border, once every 7s (every 2s while the
- * Dominus works). Gold, because talking to the Dominus spends tokens.
+ * Dominus works). Gold, because talking to the Dominus spends tokens. Light at rest: the frame is
+ * a still mask, and inside it a fixed gold gradient turns (a transform the graphics card runs on
+ * its own); turning the gradient's angle instead made the page repaint on every frame.
  */
-@property --cb-turn {
-  syntax: '<angle>';
-  initial-value: 0deg;
-  inherits: false;
-}
-
 .cb-light {
   position: relative;
   isolation: isolate;
 }
 
-.cb-light::before {
+/* The frame: the thin outline, and the window the light shows through. */
+.cb-light::before,
+.cb-light-run {
   content: '';
   position: absolute;
   inset: 0;
@@ -100,28 +99,44 @@ body {
   padding: 1px;
   border-radius: inherit;
   pointer-events: none;
-  background:
-    conic-gradient(
-        from var(--cb-turn),
-        transparent 0 80%,
-        color-mix(in oklch, var(--cb-cost) 70%, transparent) 90%,
-        transparent 100%
-      )
-      border-box,
-    linear-gradient(var(--cb-outline), var(--cb-outline)) border-box;
   mask:
     linear-gradient(#000 0 0) content-box exclude,
     linear-gradient(#000 0 0);
-  animation: cb-run 7s linear infinite;
 }
 
-.cb-light[data-busy]::before {
+.cb-light::before {
+  background: var(--cb-outline);
+}
+
+.cb-light-run {
+  overflow: hidden;
+}
+
+/* A square as wide as the box, centered, turning: its gold arc sweeps the frame. */
+.cb-light-run::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 110%;
+  aspect-ratio: 1;
+  background: conic-gradient(
+    transparent 0 80%,
+    color-mix(in oklch, var(--cb-cost) 70%, transparent) 90%,
+    transparent 100%
+  );
+  transform: translate(-50%, -50%);
+  animation: cb-run 7s linear infinite;
+  will-change: transform;
+}
+
+.cb-light[data-busy] .cb-light-run::before {
   animation-duration: 2s;
 }
 
 @keyframes cb-run {
   to {
-    --cb-turn: 360deg;
+    transform: translate(-50%, -50%) rotate(1turn);
   }
 }
 

@@ -97,6 +97,11 @@ describe('research tools on a real browser', () => {
         return;
       }
       if (req.url === '/secret') reachedPrivate = true;
+      // A redirect to this computer's own other port: an application must never follow it.
+      if (req.url === '/away') {
+        res.writeHead(302, { location: 'http://127.0.0.1:1/secret' }).end();
+        return;
+      }
       res.writeHead(200, { 'content-type': 'text/html' })
         .end(`<!doctype html><title>Simulator</title>
         <main><h1>Yield simulator</h1>
@@ -176,6 +181,19 @@ describe('research tools on a real browser', () => {
     expect(r.gaps).toEqual(['The rate changes every day']);
     expect(r.screenshot).toBe('shot-1.png');
     expect(r.sites).toEqual([{ host: '127.0.0.1', pages: 1 }]);
+  });
+
+  it('an application reads only allowed sites, and a redirect cannot lead elsewhere', async () => {
+    const { netGet } = await import('../src/browser/fetch.ts');
+    const allowed = (h: string) => h === '127.0.0.1';
+    const ok = await netGet(`${base}/api/rate`, allowed);
+    expect(ok).toMatchObject({ status: 200, body: '{"rate":10.65}' });
+    expect(ok.type).toContain('json');
+    await expect(netGet(`${base}/api/rate`, () => false)).rejects.toThrow(/not allowed/);
+    // Port 1 on the loopback is not one the tests serve: the guard refuses it.
+    await expect(netGet(`${other}/secret`, () => true)).rejects.toBeInstanceOf(BlockedError);
+    await expect(netGet(`${base}/away`, allowed)).rejects.toBeInstanceOf(BlockedError);
+    expect(reachedPrivate).toBe(false);
   });
 
   it('stops at the page limit of its depth', async () => {

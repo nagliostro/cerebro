@@ -29,6 +29,7 @@ function startCore() {
     env: {
       ...process.env,
       CEREBRO_DATA_DIR: dir,
+      CEREBRO_HEARTBEAT_MS: '8000',
       CEREBRO_TEST_JOBS: '1',
       CEREBRO_SIMULATED: '1',
       CEREBRO_CLOCK: 'off',
@@ -330,6 +331,21 @@ describe('dominus core', () => {
     expect(await call('GET', '/plans/current?target=garden')).toBeNull();
   });
 
+  it('choosing a language translates the built neurons written in the other one, with no second yes', async () => {
+    const { neurons: started } = await call<{ neurons: string[] }>('POST', '/plans/translate', {
+      locale: 'pt-BR',
+    });
+    expect(started).toContain('garden');
+    const open = await call<PlanRow>('GET', '/plans/current?target=garden');
+    expect(open.request).toMatch(/português/);
+    expect((await until(open.id, 'built', 'failed')).status).toBe('built');
+    // Already in that language: nothing more to do.
+    const again = await call<{ neurons: string[] }>('POST', '/plans/translate', {
+      locale: 'pt-BR',
+    });
+    expect(again.neurons).not.toContain('garden');
+  });
+
   it('a plan for a neuron already there without an application builds that one, not a twin', async () => {
     await call('POST', '/graph/neurons', { name: 'Bikes' });
     const id = await ask('Bikes: rides of the week');
@@ -539,6 +555,36 @@ describe('dominus core', () => {
     expect((await call<{ id: string }[]>('GET', '/providers')).map((p) => p.id)).not.toContain(
       'ollama',
     );
+  });
+
+  it('an application reaches only allowed sites: one it asks for waits for the owner', async () => {
+    const id = await ask('Rates: the exchange rate of the day [net:api.example.com]');
+    const ready = await until(id, 'ready', 'failed');
+    expect(ready.plan!.internet).toEqual([{ host: 'api.example.com', why: 'the rate of the day' }]);
+    await call('POST', `/plans/${id}/accept`);
+    const built = await until(id, 'built', 'failed');
+    const n = built.neuron!;
+    // Accepted with the plan: allowed.
+    expect(await call('GET', `/neurons/${n}/network`)).toEqual([
+      expect.objectContaining({ host: 'api.example.com', status: 'allowed', hits: 0 }),
+    ]);
+    // A site it may not reach: refused, and recorded as asking.
+    await expect(
+      call('POST', `/neurons/${n}/net`, { url: 'https://other.example.org/x', why: 'news' }),
+    ).rejects.toThrow(/403/);
+    const asked = await call<{ host: string; status: string }[]>('GET', `/neurons/${n}/network`);
+    expect(asked).toContainEqual(
+      expect.objectContaining({ host: 'other.example.org', status: 'requested', why: 'news' }),
+    );
+    // Allowed by the owner; and even an allowed name is refused if it is this computer.
+    await call('POST', `/neurons/${n}/network`, { host: 'localhost', allow: true });
+    await expect(call('POST', `/neurons/${n}/net`, { url: 'http://localhost:1/' })).rejects.toThrow(
+      /400/,
+    );
+    await call('POST', `/neurons/${n}/network`, { host: 'other.example.org', allow: false });
+    expect(
+      (await call<{ host: string }[]>('GET', `/neurons/${n}/network`)).map((s) => s.host),
+    ).toEqual(['api.example.com', 'localhost']);
   });
 
   it('the runs are listed with what, how it ended and the cost, never the prompt', async () => {

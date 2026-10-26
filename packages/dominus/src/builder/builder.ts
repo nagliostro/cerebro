@@ -13,6 +13,7 @@ import { readGuide, researchDir } from '../research/guide.ts';
 import { checkLibrary, vendorLibrary, vendorPath, type Library } from '../research/libraries.ts';
 import { readResearch, writeResearch, type Research } from '../research/record.ts';
 import { DEPTH_PAGES, readSettings } from '../settings.ts';
+import { requestLocale } from './language.ts';
 import type { CheckResult } from '../browser/checks.ts';
 import type { AskPayload } from '../worker.ts';
 import {
@@ -104,6 +105,7 @@ export const cloneSource = (request: string) => request.match(/https?:\/\/[^\s<>
 /** A plan that asks, with nothing else in it yet (the research's question). */
 const asking = (question: { text: string; options: string[] }) => ({
   libraries: [],
+  internet: [],
   ready: false,
   questions: [question.text],
   options: question.options,
@@ -157,7 +159,8 @@ export class Builder {
   async start(input: Record<string, unknown>): Promise<string> {
     const request = typeof input.request === 'string' ? input.request.trim() : '';
     if (!request || request.length > MAX_REQUEST) throw new BuildError('invalid request');
-    const locale = input.locale === 'pt-BR' ? 'pt-BR' : 'en';
+    // In the language the owner wrote in; the screen's, when the request does not tell.
+    const locale = requestLocale(request) ?? (input.locale === 'pt-BR' ? 'pt-BR' : 'en');
     let target: string | null = null;
     if (input.target !== undefined && input.target !== null) {
       if (typeof input.target !== 'string' || !this.d.graph.neuron(input.target))
@@ -185,6 +188,35 @@ export class Builder {
     this.d.plans.update(id, { steps });
     await this.think(id);
     return id;
+  }
+
+  /** Plans that only translate an application: accepted as soon as they are ready. */
+  private translating = new Set<string>();
+
+  /**
+   * The owner chose a language: every built application written in the other one is adjusted to
+   * this one (texts and title, nothing else). Returns the neurons being translated.
+   */
+  async translate(input: Record<string, unknown>): Promise<string[]> {
+    const locale = input.locale === 'pt-BR' ? 'pt-BR' : 'en';
+    const busy = new Set(this.d.plans.active().map((p) => p.target));
+    const request =
+      locale === 'pt-BR'
+        ? 'Traduza para português do Brasil todos os textos visíveis desta aplicação (títulos, botões, rótulos, mensagens, datas e formatos) e o título da página. Não mude mais nada: o visual, os dados e o comportamento ficam iguais.'
+        : 'Translate to English every visible text of this application (titles, buttons, labels, messages, date and number formats) and the page title. Change nothing else: the look, the data and the behavior stay the same.';
+    const started: string[] = [];
+    for (const n of this.summaries()) {
+      if (!n.built || busy.has(n.id) || n.id === NAVEGADOR) continue;
+      // Its language is the one it was last built in; unknown (shipped with the Cerebro): left alone.
+      const last = this.d.plans.recentBuilt(n.id)[0];
+      if (!last || (last.locale === 'pt-BR' ? 'pt-BR' : 'en') === locale) continue;
+      const id = this.d.plans.create(request, locale, n.id);
+      this.translating.add(id);
+      this.d.plans.update(id, { steps: [{ kind: 'read', words: words(request) }] });
+      await this.think(id);
+      started.push(n.id);
+    }
+    return started;
   }
 
   /** The Navegador joins the Memória the first time a research needs it, with its application. */
@@ -642,6 +674,11 @@ export class Builder {
         steps,
         addThinkCost: cost,
       });
+      // A translation the owner asked for by choosing a language: built at once, no second yes.
+      if (plan.ready && this.translating.delete(row.id))
+        void this.accept(row.id).catch((e) =>
+          this.d.plans.update(row.id, { status: 'failed', error: (e as Error).message }),
+        );
     } catch (e) {
       const why = e instanceof PlanError ? `bad-plan: ${e.message}` : (e as Error).message;
       this.d.plans.update(row.id, { status: 'failed', error: why, steps, addThinkCost: cost });
@@ -823,6 +860,8 @@ export class Builder {
         this.d.contracts.setPermission(l.neuron, id, l.collection, grants);
         this.d.graph.addLink(id, l.neuron);
       }
+      // The owner accepted its sites with the plan: its application may read them (the globe).
+      for (const s of plan.internet ?? []) this.d.contracts.allowSite(id, s.host, s.why);
       // The Dominus built it: their first conversation.
       this.d.graph.recordConversation(DOMINUS_ID, id);
       // A copy keeps its research and answer key (every adjustment is checked again), with what

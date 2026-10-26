@@ -37,6 +37,7 @@ export function DominusBox({
   onSend,
   onStop,
   className = '',
+  docked = false,
 }: {
   label: string;
   sendLabel: string;
@@ -45,6 +46,8 @@ export function DominusBox({
   onSend: (text: string) => Promise<boolean>;
   onStop: () => void;
   className?: string;
+  /** Inside a panel (a neuron's adjustments), not fixed at the foot of the screen. */
+  docked?: boolean;
 }) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -67,7 +70,8 @@ export function DominusBox({
   const show = busy || text.trim().length > 0;
   return (
     <form
-      className={`fixed bottom-6 left-1/2 z-40 w-[min(100%-32px,40rem)] -translate-x-1/2 ${className}`}
+      data-avoid
+      className={`${docked ? 'relative w-full' : 'fixed bottom-6 left-1/2 z-40 w-[min(100%-32px,40rem)] -translate-x-1/2'} ${className}`}
       onSubmit={(e) => {
         e.preventDefault();
         void submit();
@@ -77,6 +81,7 @@ export function DominusBox({
         className="cb-light flex min-h-14 items-end gap-1 rounded-[10px] bg-[oklch(0.13_0.006_265/0.75)] py-2.5 pr-2.5 pl-3.5 backdrop-blur-md transition-shadow has-[textarea:focus-visible]:shadow-[inset_0_0_0_1px_oklch(1_0_0/45%)]"
         data-busy={busy ? '' : undefined}
       >
+        <span aria-hidden className="cb-light-run" />
         <div className="relative flex-1">
           <textarea
             id="dominus-ask"

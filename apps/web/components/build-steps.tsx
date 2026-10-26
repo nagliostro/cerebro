@@ -2,40 +2,20 @@
 
 import { useSyncExternalStore } from 'react';
 
+import { CHAR_W, layout, type Rect } from '@/lib/step-layout';
+
 /**
  * One point around the Dominus: a real step, never decoration. `from`: a craft neuron doing the
  * step (the Navegador), whose synapse leaves from that neuron's point instead.
  */
 export type StepPoint = { key: string; text: string; busy: boolean; ai: boolean; from?: string };
 
-/** Where a neuron is on the screen now (its point in the Memória), if it is there. */
-function centerOf(id: string): { x: number; y: number } | null {
-  const el = document.querySelector(`[data-neuron="${CSS.escape(id)}"]`);
-  const r = el?.getBoundingClientRect();
-  return r && r.width ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
-}
-
-/** A craft neuron's steps go outward, away from the Dominus. */
-const CRAFT_SLOTS: [number, number][] = [
-  [0.25, 95],
-  [1.3, 80],
-  [0.8, 115],
-  [-0.4, 105],
-];
-
-// Angles (radians) and distances vary: nothing symmetric, like a real network.
-const SLOTS: [number, number][] = [
-  [-2.5, 120],
-  [-0.55, 150],
-  [2.3, 135],
-  [0.6, 175],
-  [-1.4, 190],
-  [1.55, 160],
-  [3.0, 200],
-  [-3.0, 165],
-  [-2.0, 215],
-  [0.15, 210],
-];
+/** The most steps on the sky at once, so a long work never fills it. */
+const SHOWN = 14;
+/** A longer label is cut (the whole text shows on hover and in the caption). */
+const MAX_CHARS = 46;
+/** How far the Memória slides left when the plan opens beside it (xl). */
+const ASIDE_SHIFT = 200;
 
 const subscribe = (change: () => void) => {
   window.addEventListener('resize', change);
@@ -52,40 +32,60 @@ function useWindow() {
   return { w: Number(w), h: Number(h), still: still === 'true' };
 }
 
+/** A neuron's center in the Memória's own coordinates (where the Memória itself put it). */
+function neuronCenter(el: HTMLElement): { x: number; y: number } | null {
+  const m = el.style.transform.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/);
+  return m ? { x: Number(m[1]), y: Number(m[2]) } : null;
+}
+
+const cut = (s: string) => (s.length > MAX_CHARS ? `${s.slice(0, MAX_CHARS - 1)}…` : s);
+
 /**
- * The steps of the Dominus around it, each linked to it by a synapse with a pulse of light that
- * goes and comes while the step runs. Busy steps say what they do; done ones their result and
- * step back. The Dominus sits at the center of the screen, 12px down (as in the Memória).
+ * The steps of the Dominus, each linked to whoever does it by a synapse with a pulse of light
+ * that goes and comes while the step runs. They spread over the sky (lib/step-layout.ts): each
+ * label where it covers no other, no neuron, the Dominus, the menu, the box or the plan.
  */
-export function BuildSteps({ steps }: { steps: StepPoint[] }) {
+export function BuildSteps({ steps, aside = false }: { steps: StepPoint[]; aside?: boolean }) {
   const size = useWindow();
   if (!size) return null;
 
-  const cx = size.w / 2;
-  const cy = size.h / 2 + 12;
-  // The last few, so a long build never covers the sky.
-  const shown = steps.slice(-SLOTS.length);
-  let own = 0;
-  let craft = 0;
-  const points = shown.map((s) => {
-    const origin = s.from ? centerOf(s.from) : null;
-    // Away from the Dominus: the side of the screen the craft neuron is on.
-    const side = origin ? Math.atan2(origin.y - cy, origin.x - cx) : 0;
-    const [a, d] = origin
-      ? CRAFT_SLOTS[craft++ % CRAFT_SLOTS.length]!
-      : SLOTS[own++ % SLOTS.length]!;
-    const angle = origin ? side + a : a;
-    const ox = origin?.x ?? cx;
-    const oy = origin?.y ?? cy;
-    const r = Math.min(d, size.w * 0.3);
-    return {
-      ...s,
-      ox,
-      oy,
-      x: ox + Math.cos(angle) * r,
-      y: oy + Math.sin(angle) * r * 0.8,
-      left: Math.cos(angle) < 0,
-    };
+  // In the Memória's coordinates: it slides left beside an open plan on a wide screen.
+  const shift = aside && size.w >= 1280 ? ASIDE_SHIFT : 0;
+  const dominus = { x: size.w / 2, y: size.h / 2 + 12 };
+  const labels = size.w >= 820;
+  const neurons = new Map<string, { x: number; y: number }>();
+  const obstacles: Rect[] = [{ x: dominus.x - 34, y: dominus.y - 34, w: 68, h: 68 }];
+  for (const el of document.querySelectorAll<HTMLElement>('[data-neuron]')) {
+    const c = neuronCenter(el);
+    if (!c) continue;
+    neurons.set(el.dataset.neuron!, c);
+    obstacles.push({ x: c.x - 22, y: c.y - 22, w: 44, h: 44 });
+  }
+  // What lives outside the Memória (the menu, the box, the caption, the plan), in its coordinates.
+  for (const el of document.querySelectorAll<HTMLElement>('[data-avoid]')) {
+    const r = el.getBoundingClientRect();
+    if (r.width && r.height)
+      obstacles.push({ x: r.left + shift, y: r.top, w: r.width, h: r.height });
+  }
+  const area = {
+    left: shift + 8,
+    top: 16,
+    bottom: size.h - 16,
+    right: shift + size.w - (shift ? 416 : 0) - 8,
+  };
+
+  const shown = steps.slice(-SHOWN);
+  const origins = shown.map((s) => (s.from && neurons.get(s.from)) || dominus);
+  const placed = layout({
+    // A busy label ends in moving dots: room for them too.
+    labels: shown.map((s) => (labels ? `${cut(s.text)}${s.busy ? '...' : ''}` : '')),
+    origins,
+    obstacles,
+    area,
+  });
+  const points = shown.flatMap((s, i) => {
+    const p = placed[i];
+    return p ? [{ ...s, ...p, ox: origins[i]!.x, oy: origins[i]!.y }] : [];
   });
 
   return (
@@ -130,11 +130,15 @@ export function BuildSteps({ steps }: { steps: StepPoint[] }) {
             }}
           />
           {/* Labels beside the points from 820px; on a phone, the caption says it. */}
-          <span
-            className={`absolute -top-[9px] hidden whitespace-nowrap min-[820px]:block ${p.left ? 'right-3' : 'left-3'} ${p.busy ? 'cb-busy text-(--cb-highlight)' : ''}`}
-          >
-            {p.text}
-          </span>
+          {labels && (
+            <span
+              title={p.text}
+              className={`absolute -top-[9px] whitespace-nowrap ${p.left ? 'right-3' : 'left-3'} ${p.busy ? 'cb-busy text-(--cb-highlight)' : ''}`}
+              style={{ maxWidth: Math.ceil(MAX_CHARS * CHAR_W) + 30 }}
+            >
+              {cut(p.text)}
+            </span>
+          )}
         </div>
       ))}
     </div>

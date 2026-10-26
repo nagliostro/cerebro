@@ -24,6 +24,18 @@ import {
 // to /login) and everything else gets 401.
 
 const LOCKED = '/locked';
+/** The screens' language this browser chose in Settings; without it, the browser's own. */
+const LOCALE_COOKIE = 'cerebro_locale';
+const LOCALES = new Set(['pt-BR', 'en']);
+
+/** On to the page, in the language chosen here, when there is one (every screen reads it). */
+function onward(request: NextRequest) {
+  const chosen = request.cookies.get(LOCALE_COOKIE)?.value;
+  if (!chosen || !LOCALES.has(chosen)) return NextResponse.next();
+  const headers = new Headers(request.headers);
+  headers.set('accept-language', chosen);
+  return NextResponse.next({ request: { headers } });
+}
 // Browsers keep a cookie for at most 400 days.
 const SESSION_MAX_AGE = 400 * 24 * 60 * 60;
 const terminalInPortuguese = pickLocale(Intl.DateTimeFormat().resolvedOptions().locale) === 'pt-BR';
@@ -86,7 +98,7 @@ export async function proxy(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   if (await isValidSession(token)) {
     await touchSession(token);
-    return url.pathname === LOCKED ? NextResponse.redirect(here('/')) : NextResponse.next();
+    return url.pathname === LOCKED ? NextResponse.redirect(here('/')) : onward(request);
   }
 
   const isPage = request.method === 'GET' && !url.pathname.startsWith('/api/');
@@ -95,7 +107,7 @@ export async function proxy(request: NextRequest) {
   // Someone is at the door: make sure the terminal has a link they can use.
   if (!(await hasLiveLaunchKey()))
     console.log(launchLine(origin, await issueLaunchKey(), terminalInPortuguese));
-  return url.pathname === LOCKED ? NextResponse.next() : NextResponse.redirect(here(LOCKED));
+  return url.pathname === LOCKED ? onward(request) : NextResponse.redirect(here(LOCKED));
 }
 
 export const config = {

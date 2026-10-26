@@ -60,6 +60,18 @@ export function DevicesPanel({
   const router = useRouter();
   const [devices, setDevices] = useState(initial);
   const [channel, setChannel] = useState(initialChannel);
+
+  // The page opens at once; Tailscale answers on its own time (its CLI can take seconds).
+  useEffect(() => {
+    if (!local || channel) return;
+    let gone = false;
+    void fetch('/api/remote')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((c: ChannelStatus | null) => !gone && c && setChannel(c));
+    return () => {
+      gone = true;
+    };
+  }, [local, channel]);
   const [pairing, setPairing] = useState<Pairing | null>(null);
   const [left, setLeft] = useState(0);
   const [note, setNote] = useState<string | null>(null);
@@ -269,8 +281,10 @@ export function DevicesPanel({
 
       <section aria-label={m.remoteTitle} className="mt-12">
         <h2 className="text-(--cb-highlight)">{m.remoteTitle}</h2>
-        {!local || !channel ? (
+        {!local ? (
           <p className="mt-1">{m.onlyHere}</p>
+        ) : !channel ? (
+          <p className="mt-1">{m.checkingRemote}</p>
         ) : (
           <div className="mt-1 grid justify-items-start gap-3">
             <p>

@@ -168,3 +168,20 @@ describe('the plans table', () => {
     plans.close();
   });
 });
+
+describe('the language of a request', () => {
+  it('follows what the owner wrote, not the browser; unsure, it says nothing', async () => {
+    const { requestLocale } = await import('../src/builder/language.ts');
+    expect(requestLocale('crie um neuronio especializado em controle de gastos domesticos')).toBe(
+      'pt-BR',
+    );
+    expect(
+      requestLocale(
+        'Preciso de um neurônio para dividir pdfs como em https://www.ilovepdf.com/split',
+      ),
+    ).toBe('pt-BR');
+    expect(requestLocale('make an app to track my running and the shoes I use')).toBe('en');
+    expect(requestLocale('https://example.com')).toBeNull();
+    expect(requestLocale('Horta')).toBeNull();
+  });
+});

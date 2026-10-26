@@ -97,3 +97,19 @@ test('Processes: each request through its stages, newest first; one built opens 
   await garden.getByRole('link', { name: /^Abrir / }).click();
   await expect(page).toHaveURL(/\/neuron\//);
 });
+
+test('the screens language is chosen per device, and back to the browser one', async ({ page }) => {
+  await page.goto('/settings');
+  const language = page.getByRole('radiogroup', { name: 'Idioma' });
+  await language.getByRole('radio', { name: 'English' }).click();
+  // The page comes back in English, though the browser asks for Portuguese.
+  await expect(page.getByRole('heading', { level: 1, name: 'General' })).toBeVisible();
+  await page.goto('/');
+  await expect(page.getByRole('textbox', { name: 'Ask the Dominus' })).toBeVisible();
+  await page.goto('/settings');
+  await page
+    .getByRole('radiogroup', { name: 'Language' })
+    .getByRole('radio', { name: /Automatic/ })
+    .click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Geral' })).toBeVisible();
+});

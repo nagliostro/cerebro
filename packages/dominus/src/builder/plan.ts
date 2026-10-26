@@ -39,6 +39,8 @@ export type Plan = {
   checks: string[];
   limits: string[];
   existing: string | null;
+  /** Public sites the application reads live data from, through the Cerebro (allowed on build). */
+  internet: { host: string; why: string }[];
   /** Free libraries the neuron will carry, checked on the npm registry (filled by the code). */
   libraries: Library[];
   /** The ones the planner named, before the check. */
@@ -126,7 +128,7 @@ type Raw = Omit<PlanRow, 'exchanges' | 'plan' | 'estimate' | 'steps' | 'adjustin
 const fromRaw = (r: Raw): PlanRow => ({
   ...r,
   exchanges: JSON.parse(r.exchanges),
-  plan: r.plan ? { options: [], libraries: [], ...JSON.parse(r.plan) } : null,
+  plan: r.plan ? { options: [], libraries: [], internet: [], ...JSON.parse(r.plan) } : null,
   research: r.research ? JSON.parse(r.research) : null,
   estimate: r.estimate ? JSON.parse(r.estimate) : null,
   steps: JSON.parse(r.steps),
@@ -316,6 +318,7 @@ export class Plans {
 // ---- The plan from the AI: one JSON object, checked and trimmed. ----
 
 const NAME = /^[a-z][a-z0-9_-]{0,31}$/;
+const HOST = /^(?=.{4,100}$)([a-z0-9-]+\.)+[a-z]{2,}$/;
 const text = (v: unknown, max: number) =>
   typeof v === 'string' ? v.trim().replace(/\s+/g, ' ').slice(0, max) : '';
 const texts = (v: unknown, max: number, each: number) =>
@@ -378,6 +381,19 @@ export function parsePlan(answer: string, known: Set<string>): Plan {
     checks: texts(raw.checks, 5, 200),
     limits: texts(raw.limits, 3, 200),
     existing: typeof raw.existing === 'string' && known.has(raw.existing) ? raw.existing : null,
+    internet: (Array.isArray(raw.internet) ? raw.internet : [])
+      .map((x: { host?: unknown; why?: unknown }) => ({
+        host: text(x?.host, 100)
+          .toLowerCase()
+          .replace(/^https?:\/\//, '')
+          .replace(/\/.*$/, ''),
+        why: text(x?.why, 200),
+      }))
+      // A public name only: never an address, this computer or the home network.
+      .filter(
+        (x) => HOST.test(x.host) && !/(^|\.)(localhost|local|internal|lan|ts\.net)$/.test(x.host),
+      )
+      .slice(0, 3),
     libraries: [],
     wanted: (Array.isArray(raw.libraries) ? raw.libraries : [])
       .map((l: { name?: unknown; why?: unknown }) => ({

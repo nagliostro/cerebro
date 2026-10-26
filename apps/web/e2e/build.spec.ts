@@ -104,6 +104,11 @@ test('a neuron without an application gets its first one from its own screen', a
   test.skip(info.project.name !== 'build-desktop', 'one neuron, one build');
   await page.goto('/neuron/pesquisa');
   await expect(page.getByText('A aplicação de Pesquisa ainda não foi construída.')).toBeVisible();
+  // The pencil opens its adjustments, as in the Cerebro before; no box at the foot.
+  await expect(page.getByRole('textbox', { name: 'Peça um ajuste a Pesquisa' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Ajustar Pesquisa' }).click();
+  const adjustments = page.getByRole('region', { name: 'Ajustes de Pesquisa' });
+  await expect(adjustments).toContainText('Nenhum pedido ainda.');
   await ask(page, 'uma lista de fontes para consultar', 'Peça um ajuste a Pesquisa');
   await expect(plan(page)).toContainText('Pesquisa');
   await plan(page).getByRole('button', { name: 'Ajustar' }).click();
@@ -114,11 +119,13 @@ test('a neuron without an application gets its first one from its own screen', a
   await expect(asked).toHaveText('uma lista de fontes para consultar');
   // A first application has nothing to go back to; an adjustment of it does.
   await expect(page.getByRole('button', { name: 'Desfazer' })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Fechar' }).click();
+  await page.getByRole('button', { name: 'Fechar', exact: true }).click();
   await ask(page, 'com uma nota em cada fonte', 'Peça um ajuste a Pesquisa');
   await plan(page).getByRole('button', { name: 'Ajustar' }).click();
   await expect(asked).toHaveText('com uma nota em cada fonte', { timeout: 20_000 });
-  await page.getByRole('button', { name: 'Desfazer' }).click();
+  // Both requests are in its list, the newest last, with Undo on it.
+  await expect(adjustments).toContainText('uma lista de fontes para consultar');
+  await adjustments.getByRole('button', { name: 'Desfazer' }).click();
   await expect(
     page.getByText('Pesquisa · ajuste desfeito, a versão anterior voltou'),
   ).toBeVisible();
@@ -180,6 +187,70 @@ test('a vague copy asks which feature, as a choice, and goes on with it', async 
   await expect(plan(page)).toContainText('Gabarito · 2 casos', { timeout: 20_000 });
   await expect(plan(page)).toContainText('Você disse: Yield simulator');
   await plan(page).getByRole('button', { name: 'Rejeitar' }).click();
+});
+
+test('a crowded research spreads its steps: no label touches another; the plan wraps its text', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'build-desktop', 'labels show from 820px');
+  await page.goto('/');
+  // Many long searches, and a long link with no space in it.
+  const link = `https://app.example.com/${'categorias-de-despesas-'.repeat(6)}fim`;
+  await ask(page, `copie as categorias de ${link} [searches:12]`);
+  const labels = page.locator('span[title]');
+  const measure = async () => {
+    const boxes = await labels.evaluateAll((els) =>
+      els.map((e) => {
+        const r = e.getBoundingClientRect();
+        return { x: r.x, y: r.y, w: r.width, h: r.height };
+      }),
+    );
+    for (const [i, a] of boxes.entries())
+      for (const b of boxes.slice(i + 1))
+        expect(
+          a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h,
+          `${JSON.stringify(a)} and ${JSON.stringify(b)} overlap`,
+        ).toBe(false);
+    return boxes.length;
+  };
+  await expect.poll(() => labels.count(), { timeout: 20_000 }).toBeGreaterThan(8);
+  expect(await measure()).toBeGreaterThan(8);
+  await expect(plan(page)).toContainText('Gabarito', { timeout: 30_000 });
+  await measure();
+  // The plan's text fits its panel: only the vertical scroll, never a sideways one.
+  const fits = await plan(page)
+    .locator('> div')
+    .first()
+    .evaluate((el) => el.scrollWidth <= el.clientWidth);
+  expect(fits).toBe(true);
+  await plan(page).getByRole('button', { name: 'Rejeitar' }).click();
+});
+
+test('a neuron that reads the internet shows the globe: its sites, and the owner takes one away', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'build-desktop', 'one neuron, one build');
+  await page.goto('/');
+  await ask(page, 'Cotação: a do dólar no dia [net:api.example.com]');
+  await expect(plan(page)).toContainText('Internet');
+  await expect(plan(page)).toContainText('api.example.com');
+  await plan(page).getByRole('button', { name: 'Construir' }).click();
+  await page.getByRole('link', { name: /^Abrir / }).click({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Internet de Cotação' }).click();
+  const globe = page.getByRole('region', { name: 'Internet de Cotação' });
+  await expect(globe).toContainText('api.example.com');
+  await expect(globe).toContainText('Liberado · ainda não acessado');
+  // The screen with the globe and the adjustments open passes WCAG 2.2 AA.
+  await page.getByRole('button', { name: 'Ajustar Cotação' }).click();
+  await expect(page.getByRole('region', { name: 'Ajustes de Cotação' })).toContainText(
+    'Cotação: a do dólar no dia',
+  );
+  await page.getByRole('button', { name: 'Internet de Cotação' }).click();
+  const tags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
+  expect((await new AxeBuilder({ page }).withTags(tags).analyze()).violations).toEqual([]);
+  await globe.getByRole('button', { name: 'Tirar: api.example.com' }).click();
+  // No site left: no globe.
+  await expect(page.getByRole('button', { name: 'Internet de Cotação' })).toHaveCount(0);
 });
 
 test('passes WCAG 2.2 AA with the plan open', async ({ page }) => {

@@ -27,11 +27,13 @@ export function NeuronFrame({ id, src, title }: { id: string; src: string; title
       if (!frame.current || e.source !== frame.current.contentWindow) return;
       const m = e.data as Record<string, unknown> | null;
       if (m?.cerebro === 'notify' && typeof m.text === 'string') return say(m.text);
-      if (m?.cerebro !== 'request' || (m.kind !== 'data' && m.kind !== 'call')) return;
+      if (m?.cerebro !== 'request' || !['data', 'call', 'net'].includes(String(m.kind))) return;
       const body =
         m.kind === 'data'
           ? { kind: 'data', collection: m.collection, op: m.op, input: m.input }
-          : { kind: 'call', target: m.target, operation: m.operation, input: m.input };
+          : m.kind === 'call'
+            ? { kind: 'call', target: m.target, operation: m.operation, input: m.input }
+            : { kind: 'net', url: m.url, why: m.why };
       try {
         const res = await fetch(`/api/neurons/${id}/bridge`, {
           method: 'POST',

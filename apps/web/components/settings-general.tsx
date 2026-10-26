@@ -66,3 +66,61 @@ export function DepthChoice({ initial, locale }: { initial: Depth; locale: Local
     </>
   );
 }
+
+type Language = 'auto' | 'pt-BR' | 'en';
+const LANGUAGES: Language[] = ['auto', 'pt-BR', 'en'];
+
+/** The screens' language on this device; the page comes back in it. */
+export function LanguageChoice({ initial, locale }: { initial: Language; locale: Locale }) {
+  const m = t(locale).settings;
+  const [note, setNote] = useState('');
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  async function choose(l: Language) {
+    if (l === initial) return;
+    try {
+      await post('/api/locale', { locale: l });
+      window.location.reload();
+    } catch (e) {
+      setNote(m.failed((e as Error).message));
+    }
+  }
+
+  return (
+    <>
+      <div role="radiogroup" aria-label={m.general.language} className="flex flex-wrap gap-2">
+        {LANGUAGES.map((l, i) => (
+          <button
+            key={l}
+            ref={(el) => {
+              refs.current[i] = el;
+            }}
+            type="button"
+            role="radio"
+            aria-checked={initial === l}
+            tabIndex={initial === l ? 0 : -1}
+            onClick={() => void choose(l)}
+            onKeyDown={(e) => {
+              const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+              if (!step) return;
+              e.preventDefault();
+              refs.current[(i + step + LANGUAGES.length) % LANGUAGES.length]?.focus();
+            }}
+            className={`min-h-11 cursor-pointer rounded-full px-4 ${
+              initial === l
+                ? 'bg-white text-[oklch(0.15_0.006_265)]'
+                : 'shadow-[inset_0_0_0_1px_var(--cb-outline)] hover:text-(--cb-highlight)'
+            }`}
+          >
+            {m.general.languages[l]}
+          </button>
+        ))}
+      </div>
+      {note && (
+        <p role="status" className="mt-2">
+          {note}
+        </p>
+      )}
+    </>
+  );
+}

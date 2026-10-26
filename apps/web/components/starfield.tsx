@@ -1,5 +1,10 @@
 // Starry background: small dots in three depth layers. The farther ones are smaller, dimmer
 // and more numerous. A fixed seed makes the server and the browser draw the same sky.
+//
+// Light at rest: the still stars are drawn once; the few that twinkle live in four layers of
+// their own, each fading as a whole. An opacity animation of a layer runs on the compositor (the
+// graphics card), so a sky left open costs nothing; animating each star inside one SVG made the
+// browser restyle and repaint the whole sky on every frame.
 
 function random(seed: number) {
   // mulberry32: a small deterministic generator
@@ -27,39 +32,52 @@ export const stars = layers.flatMap((layer) =>
     y: rand() * 1000,
     r: between(layer.radius),
     o: between(layer.opacity),
-    // One in eight twinkles slowly.
-    twinkle: rand() < 0.125 ? { dur: 5 + rand() * 6, delay: rand() * 8 } : null,
+    // One in eight twinkles slowly, in one of the four layers.
+    twinkle: rand() < 0.125 ? Math.floor(rand() * 4) : null,
   })),
 );
 
+/** The rhythm of each twinkling layer: never in step with another. */
+const RHYTHMS = [
+  { dur: 6.5, delay: 0 },
+  { dur: 8.2, delay: 1.7 },
+  { dur: 9.6, delay: 3.1 },
+  { dur: 11.3, delay: 0.9 },
+];
+
+const SKY = 'pointer-events-none fixed inset-0 -z-10 size-full';
+
+function Dots({ list }: { list: typeof stars }) {
+  return list.map((s, i) => (
+    <circle
+      key={i}
+      cx={s.x.toFixed(1)}
+      cy={s.y.toFixed(1)}
+      r={s.r.toFixed(2)}
+      fill="white"
+      opacity={s.o.toFixed(3)}
+    />
+  ));
+}
+
 export function Starfield() {
   return (
-    <svg
-      aria-hidden
-      viewBox="0 0 1600 1000"
-      preserveAspectRatio="xMidYMid slice"
-      className="pointer-events-none fixed inset-0 -z-10 size-full"
-    >
-      {stars.map((s, i) => (
-        <circle
-          key={i}
-          cx={s.x.toFixed(1)}
-          cy={s.y.toFixed(1)}
-          r={s.r.toFixed(2)}
-          fill="white"
-          opacity={s.o.toFixed(3)}
-          className={s.twinkle ? 'animate-[twinkle_var(--dur)_ease-in-out_infinite]' : undefined}
-          style={
-            s.twinkle
-              ? ({
-                  '--dur': `${s.twinkle.dur.toFixed(1)}s`,
-                  '--o': s.o.toFixed(3),
-                  animationDelay: `${s.twinkle.delay.toFixed(1)}s`,
-                } as React.CSSProperties)
-              : undefined
-          }
-        />
+    <>
+      <svg aria-hidden viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice" className={SKY}>
+        <Dots list={stars.filter((s) => s.twinkle === null)} />
+      </svg>
+      {RHYTHMS.map((r, layer) => (
+        <svg
+          key={layer}
+          aria-hidden
+          viewBox="0 0 1600 1000"
+          preserveAspectRatio="xMidYMid slice"
+          className={`${SKY} animate-[twinkle-layer_var(--dur)_ease-in-out_infinite] will-change-[opacity]`}
+          style={{ '--dur': `${r.dur}s`, animationDelay: `${r.delay}s` } as React.CSSProperties}
+        >
+          <Dots list={stars.filter((s) => s.twinkle === layer)} />
+        </svg>
       ))}
-    </svg>
+    </>
   );
 }

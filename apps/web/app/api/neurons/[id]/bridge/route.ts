@@ -2,9 +2,9 @@ import { coreRequest } from '@/lib/server/core';
 
 import { fromCore, hasSession, unauthorized, validNeuronId } from '@/lib/server/require-session';
 
-// The bridge's server side: what a neuron's application asked through the Cerebro page. Only two
-// kinds pass, its own data and a call to another neuron through the contract; the core checks the
-// rest (formats, permissions). Permissions themselves are never reachable from here.
+// The bridge's server side: what a neuron's application asked through the Cerebro page. Only three
+// kinds pass: its own data, a call to another neuron through the contract, and a GET to a site the
+// owner allowed it; the core checks the rest. Permissions themselves are never reachable here.
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!(await hasSession())) return unauthorized();
@@ -27,5 +27,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         input: b.input,
       }),
     );
+  // A GET to a public site the owner allowed for this neuron (the core checks which).
+  if (b?.kind === 'net')
+    return fromCore(() => coreRequest('POST', `/neurons/${id}/net`, { url: b.url, why: b.why }));
   return Response.json({ error: 'unknown request' }, { status: 400 });
 }

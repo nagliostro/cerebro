@@ -26,6 +26,8 @@ import { buildEstimate, guard } from './quota/guard.ts';
 import { route as pickRoute, type Candidate, type RouteRequest } from './quota/router.ts';
 import { windowStatus } from './quota/status.ts';
 import { Queue, toJob, type JobRow, type NewJob } from './queue.ts';
+import { netGet } from './browser/fetch.ts';
+import { BlockedError } from './browser/guard.ts';
 import { readSettings, SettingsError, writeSettings } from './settings.ts';
 import { createVault } from './vault.ts';
 import { isAskPayload, jobTypes, type AskPayload } from './worker.ts';
@@ -38,7 +40,9 @@ import { isAskPayload, jobTypes, type AskPayload } from './worker.ts';
 // requests that carry the token in the core-token file, which only the owner can read.
 
 const MAX_WORKERS = Number(process.env.CEREBRO_MAX_WORKERS ?? 2);
-const HEARTBEAT_MS = 5000;
+// A worker that stops beating this long is hung. Generous: on a busy computer (a browser using
+// whole cores) a worker just started can take seconds to load; the tests shorten it.
+const HEARTBEAT_MS = Number(process.env.CEREBRO_HEARTBEAT_MS) || 20_000;
 const CANCEL_GRACE_MS = 2000;
 const HEALTH_TTL_MS = 5 * 60_000;
 const CLOCK_SYNC_MS = 60 * 60_000;
@@ -492,8 +496,43 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     if (req.method === 'GET' && !what) return json(200, neuron);
     if (req.method === 'GET' && what === 'contract') return json(200, contracts.contract(id));
     if (req.method === 'GET' && what === 'permissions') return json(200, contracts.permissions(id));
+    if (req.method === 'GET' && what === 'network') return json(200, contracts.sites(id));
     if (req.method === 'POST') {
       const b = (await readBody(req)) as Record<string, unknown>;
+      // The internet of its application: only GETs to the sites the owner allowed for it. One it
+      // may not reach yet is recorded as asking, for the owner to decide in the globe.
+      if (what === 'net') {
+        let host: string;
+        try {
+          host = new URL(String(b.url)).hostname.toLowerCase();
+        } catch {
+          throw new BadRequest('invalid url');
+        }
+        if (!contracts.allowedSite(id, host)) {
+          contracts.requestSite(id, host, typeof b.why === 'string' ? b.why : '');
+          emit('graph.changed', {});
+          return json(403, { error: 'not allowed', requested: host });
+        }
+        try {
+          const answer = await netGet(String(b.url), (h) => contracts.allowedSite(id, h));
+          contracts.hit(id, host);
+          return json(200, answer);
+        } catch (e) {
+          if (e instanceof BlockedError) throw new BadRequest(e.message);
+          return json(502, { error: 'the site did not answer' });
+        }
+      }
+      // The owner, from the globe: allow a site, or take it away.
+      if (what === 'network') {
+        const host = typeof b.host === 'string' ? b.host.toLowerCase() : '';
+        if (!host) throw new BadRequest('host is required');
+        if (b.allow === true) {
+          const before = contracts.sites(id).find((x) => x.host === host);
+          contracts.allowSite(id, host, before?.why ?? (typeof b.why === 'string' ? b.why : ''));
+        } else if (b.allow === false) contracts.removeSite(id, host);
+        else throw new BadRequest('allow must be true or false');
+        return json(200, contracts.sites(id));
+      }
       // Settings → Neurons: rename, change its role, or remove it for good.
       if (what === 'edit') {
         graph.updateNeuron(id, { name: b.name, role: b.role });
@@ -564,6 +603,10 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     const b = (await readBody(req)) as Record<string, unknown>;
     return json(201, { id: await builder.start(b) });
   }
+  if (req.method === 'POST' && url.pathname === '/plans/translate')
+    return json(200, {
+      neurons: await builder.translate((await readBody(req)) as Record<string, unknown>),
+    });
   if (req.method === 'GET' && url.pathname === '/plans/history')
     return json(200, builder.history());
   if (req.method === 'GET' && url.pathname === '/plans/current')
