@@ -6,6 +6,7 @@ import { LOCALES, LOCALE_NAMES, t, type Locale } from '@/lib/i18n';
 
 import { useInstall } from './install';
 import { post, PRIMARY } from './settings-ui';
+import { btnOption } from './button';
 
 /** The Cerebro as an app on this device: installed, a tap to install, or where the browser has it. */
 export function InstallApp({ locale }: { locale: Locale }) {
@@ -68,11 +69,7 @@ export function DepthChoice({ initial, locale }: { initial: Depth; locale: Local
               void choose(DEPTHS[n]!);
               refs.current[n]?.focus();
             }}
-            className={`min-h-11 cursor-pointer rounded-full px-4 ${
-              depth === d
-                ? 'bg-white text-[oklch(0.15_0.006_265)]'
-                : 'shadow-[inset_0_0_0_1px_var(--cb-outline)] hover:text-(--cb-highlight)'
-            }`}
+            className={btnOption(depth === d)}
           >
             {m.general.depths[d]}
           </button>
@@ -124,11 +121,7 @@ export function LanguageChoice({ initial, locale }: { initial: Language; locale:
               e.preventDefault();
               refs.current[(i + step + LANGUAGES.length) % LANGUAGES.length]?.focus();
             }}
-            className={`min-h-11 cursor-pointer rounded-full px-4 ${
-              initial === l
-                ? 'bg-white text-[oklch(0.15_0.006_265)]'
-                : 'shadow-[inset_0_0_0_1px_var(--cb-outline)] hover:text-(--cb-highlight)'
-            }`}
+            className={btnOption(initial === l)}
           >
             {l === 'auto' ? m.general.languages.auto : LOCALE_NAMES[l]}
           </button>

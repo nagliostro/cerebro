@@ -9,13 +9,13 @@ import type { Locale, Messages } from '@/lib/i18n';
 import type { PlanView } from './construction';
 import { DominusBox } from './dominus-box';
 import { ScreenMock } from './screen-mock';
+import { BTN_PLAIN, BTN_PRIMARY, BTN_SOFT, btnOption } from './button';
 
 type Other = { id: string; name: string; color: string };
 
-const PILL = 'inline-flex h-11 cursor-pointer items-center rounded-full px-5 transition-colors';
-const PRIMARY = `${PILL} bg-white text-[oklch(0.15_0.006_265)]`;
-const SOFT = `${PILL} bg-white/8 hover:text-white`;
-const PLAIN = `${PILL} px-3 hover:text-white`;
+const PRIMARY = BTN_PRIMARY;
+const SOFT = BTN_SOFT;
+const PLAIN = BTN_PLAIN;
 
 /** The cost of building, as the Guard sees it, in the owner's words. */
 export function estimateLine(
@@ -250,7 +250,7 @@ export function PlanPanel({
                     setChoice(n);
                     choices.current[n]?.focus();
                   }}
-                  className={`min-h-9 cursor-pointer rounded-full px-3.5 ${choice === i ? 'bg-white text-[oklch(0.15_0.006_265)]' : 'shadow-[inset_0_0_0_1px_var(--cb-outline)] hover:text-(--cb-highlight)'}`}
+                  className={btnOption(choice === i)}
                 >
                   {o}
                 </button>

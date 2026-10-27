@@ -7,6 +7,7 @@ import { useRef, useState } from 'react';
 import { t, type Locale } from '@/lib/i18n';
 
 import { Field, PLAIN, post, PRIMARY, SOFT } from './settings-ui';
+import { btnOption } from './button';
 
 export type NeuronRow = {
   id: string;
@@ -130,11 +131,7 @@ export function NeuronsPanel({ initial, locale }: { initial: NeuronRow[]; locale
                         role="radio"
                         aria-checked={n.role === r}
                         onClick={() => n.role !== r && void role(n.id, r)}
-                        className={`h-9 cursor-pointer rounded-full px-3.5 ${
-                          n.role === r
-                            ? 'bg-white text-[oklch(0.15_0.006_265)]'
-                            : 'hover:text-(--cb-highlight)'
-                        }`}
+                        className={btnOption(n.role === r)}
                       >
                         {all.build.role[r]}
                       </button>

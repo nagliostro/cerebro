@@ -4,6 +4,7 @@ import { Globe } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { t, type Locale } from '@/lib/i18n';
+import { BTN_PRIMARY, BTN_SOFT } from './button';
 
 export type Site = {
   host: string;
@@ -117,7 +118,7 @@ export function NetworkPanel({
                 <button
                   type="button"
                   onClick={() => void decide(s.host, true)}
-                  className="mt-1 inline-flex h-11 w-fit cursor-pointer items-center rounded-full bg-white px-5 text-[oklch(0.15_0.006_265)]"
+                  className={`mt-1 w-fit ${BTN_PRIMARY}`}
                   aria-label={`${m.allow}: ${s.host}`}
                 >
                   {m.allow}
@@ -126,7 +127,7 @@ export function NetworkPanel({
                 <button
                   type="button"
                   onClick={() => void decide(s.host, false)}
-                  className="mt-1 inline-flex h-11 w-fit cursor-pointer items-center rounded-full bg-white/8 px-5 hover:text-white"
+                  className={`mt-1 w-fit ${BTN_SOFT}`}
                   aria-label={`${m.remove}: ${s.host}`}
                 >
                   {m.remove}

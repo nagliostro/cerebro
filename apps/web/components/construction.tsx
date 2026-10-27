@@ -13,6 +13,7 @@ import { BuildSteps, type StepPoint } from './build-steps';
 import { DominusBox } from './dominus-box';
 import { Memory, type MemoryProps } from './memory';
 import { PlanPanel } from './plan-panel';
+import { BTN_PLAIN, BTN_PRIMARY, BTN_SOFT, btnOption } from './button';
 
 /** A plan as the core shows it: as stored, plus how long its job has run and should run. */
 export type PlanView = PlanRow & {
@@ -421,44 +422,36 @@ export function Construction({
           )}
         </p>
         {/* The owner's word on the result tunes the Dominus (no AI): which values solve best. */}
-        <div role="group" aria-label={b.rate} className="flex items-center gap-1">
-          <span className="px-2">{b.rate}</span>
-          {RATINGS.map((r) => (
-            <button
-              key={r}
-              type="button"
-              aria-pressed={plan.rating === r}
-              onClick={() => void act('rate', { rating: r })}
-              className={`inline-flex h-11 cursor-pointer items-center rounded-full px-4 hover:text-white ${plan.rating === r ? 'bg-white text-[oklch(0.15_0.006_265)] hover:text-[oklch(0.15_0.006_265)]' : 'bg-white/8'}`}
-            >
-              {b.ratings[r]}
-            </button>
-          ))}
+        {/* The question on its own line: the three options keep their size on any screen. */}
+        <div role="group" aria-label={b.rate} className="grid gap-1.5">
+          <span className="px-1">{b.rate}</span>
+          <div className="flex flex-wrap gap-2">
+            {RATINGS.map((r) => (
+              <button
+                key={r}
+                type="button"
+                aria-pressed={plan.rating === r}
+                onClick={() => void act('rate', { rating: r })}
+                className={btnOption(plan.rating === r)}
+              >
+                {b.ratings[r]}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="flex gap-2">
           {/* In the conversation too: the live word is that request's answer there. */}
           {target && plan.adjusting && (
-            <button
-              type="button"
-              onClick={() => void act('undo')}
-              className="inline-flex h-11 cursor-pointer items-center rounded-full bg-white/8 px-5 hover:text-white"
-            >
+            <button type="button" onClick={() => void act('undo')} className={BTN_SOFT}>
               {b.undo}
             </button>
           )}
           {!target && plan.neuron && (
-            <Link
-              href={`/neuron/${plan.neuron}`}
-              className="inline-flex h-11 items-center rounded-full bg-white px-5 text-[oklch(0.15_0.006_265)]"
-            >
+            <Link href={`/neuron/${plan.neuron}`} className={BTN_PRIMARY}>
               {b.open(neuronName)}
             </Link>
           )}
-          <button
-            type="button"
-            onClick={() => setPlan(null)}
-            className="inline-flex h-11 cursor-pointer items-center rounded-full px-3 hover:text-white"
-          >
+          <button type="button" onClick={() => setPlan(null)} className={BTN_PLAIN}>
             {b.close}
           </button>
         </div>
@@ -469,18 +462,10 @@ export function Construction({
       <>
         <p className="cb-pill">{problemText(plan.error ?? '', b)}</p>
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => void start(plan.request)}
-            className="inline-flex h-11 cursor-pointer items-center rounded-full bg-white/8 px-5 hover:text-white"
-          >
+          <button type="button" onClick={() => void start(plan.request)} className={BTN_SOFT}>
             {b.retry}
           </button>
-          <button
-            type="button"
-            onClick={() => setPlan(null)}
-            className="inline-flex h-11 cursor-pointer items-center rounded-full px-3 hover:text-white"
-          >
+          <button type="button" onClick={() => setPlan(null)} className={BTN_PLAIN}>
             {b.close}
           </button>
         </div>
@@ -490,11 +475,7 @@ export function Construction({
     caption = (
       <>
         <p className="cb-pill">{b.undone(neuronName)}</p>
-        <button
-          type="button"
-          onClick={() => setPlan(null)}
-          className="inline-flex h-11 cursor-pointer items-center rounded-full px-3 hover:text-white"
-        >
+        <button type="button" onClick={() => setPlan(null)} className={BTN_PLAIN}>
           {b.close}
         </button>
       </>

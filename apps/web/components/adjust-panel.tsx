@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import { t, type Locale } from '@/lib/i18n';
+import { BTN_SOFT } from './button';
 
 const noChange = () => () => {};
 
@@ -212,7 +213,7 @@ export function AdjustPanel({
                       <button
                         type="button"
                         onClick={() => onUndo(turn.id)}
-                        className="mt-1 inline-flex h-11 w-fit cursor-pointer items-center rounded-full bg-white/8 px-5 hover:text-white"
+                        className={`mt-1 w-fit ${BTN_SOFT}`}
                       >
                         {all.build.undo}
                       </button>

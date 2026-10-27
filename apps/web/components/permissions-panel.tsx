@@ -2,6 +2,7 @@
 
 import { KeyRound } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { BTN_PLAIN, BTN_SOFT, btnOption } from './button';
 
 type Grant = 'view' | 'create' | 'update' | 'delete';
 const GRANTS: Grant[] = ['view', 'create', 'update', 'delete'];
@@ -134,7 +135,7 @@ export function PermissionsPanel({
                         type="button"
                         aria-pressed={on}
                         onClick={() => toggle(o.id, c, g)}
-                        className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full px-3 transition-colors ${on ? 'bg-white text-[oklch(0.15_0.006_265)]' : 'bg-white/8 hover:text-white'}`}
+                        className={btnOption(on)}
                       >
                         {labels.grants[g]}
                         {/* Operations that write carry a dot: more care before allowing them. */}
@@ -159,7 +160,7 @@ export function PermissionsPanel({
                     setAdded((a) => [...a, o.id]);
                     setChoosing(false);
                   }}
-                  className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-full bg-white/8 px-3 hover:text-white"
+                  className={BTN_SOFT}
                 >
                   <span
                     aria-hidden
@@ -178,11 +179,7 @@ export function PermissionsPanel({
         {collections.length > 0 && (
           <div className="mt-4 flex justify-between gap-3">
             {free.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => setChoosing((v) => !v)}
-                className="h-9 cursor-pointer rounded-full bg-white/8 px-4 hover:text-white"
-              >
+              <button type="button" onClick={() => setChoosing((v) => !v)} className={BTN_SOFT}>
                 {labels.allowAnother}
               </button>
             ) : (
@@ -195,7 +192,7 @@ export function PermissionsPanel({
                   setAdded([]);
                   void send({ revokeAll: true });
                 }}
-                className="h-9 cursor-pointer rounded-full px-3 hover:text-white"
+                className={BTN_PLAIN}
               >
                 {labels.revokeAll}
               </button>

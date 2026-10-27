@@ -18,6 +18,22 @@ para onde o texto vai. Nunca crie outro campo de conversa.
   anteriores.
 - Ações próprias do contexto (Voltar, Rejeitar) ficam fora da caixa, como botões de texto.
 
+## Botões (um só)
+
+Todo botão com texto usa o mesmo tamanho (`apps/web/components/button.ts`; nos neurônios, `.cb-botao`
+e `.cb-botao-sec` do kit). Nunca crie um botão com altura, largura ou cantos próprios.
+
+- Pílula de **44px de altura**, texto numa linha só, 20px de respiro de cada lado.
+- **Largura mínima de 96px:** uma palavra curta ("Bom", "Ruim") continua pílula, nunca vira oval.
+- **Largura máxima de 280px:** um texto longo não estica o botão pela tela; reescreva o texto.
+- Quatro aparências, mesmo tamanho:
+  - **Principal** (`BTN_PRIMARY`): branco, texto escuro. Uma por grupo.
+  - **Secundário** (`BTN_SOFT`): branco a 8%, clareia no hover.
+  - **Texto** (`BTN_PLAIN`): sem fundo (Fechar, Voltar, Rejeitar).
+  - **Opção de uma escolha** (`btnOption`): contorno fino; a escolhida fica preenchida em branco
+    (profundidade, idioma, papel, permissões, nota do resultado).
+- Só ícone: círculo de 44px (fora desta regra).
+
 ## Conversa com o neurônio
 
 O lápis abre a conversa com o neurônio (`apps/web/components/adjust-panel.tsx`), no padrão dos apps
@@ -36,7 +52,8 @@ de chat (ChatGPT, Claude, Gemini):
 ## Nota do resultado
 
 Quando um neurônio fica pronto ou é ajustado, a legenda pergunta "Como ficou?" com três pílulas
-(Ruim, Razoável, Bom). A escolhida fica preenchida em branco; dá para trocar. A nota alimenta o
+(Ruim, Razoável, Bom), no botão de opção (`btnOption`). A escolhida fica preenchida em branco; dá
+para trocar. A nota alimenta o
 afinamento do Dominus (`packages/dominus/src/tuning/tuner.ts`), sem gastar tokens.
 
 ## Neurônios (o kit)

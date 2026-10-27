@@ -10,13 +10,12 @@ import type { SessionInfo } from '@/lib/server/session';
 import type { ChannelStatus } from '@/lib/server/cloudflare';
 
 import { useInstall } from './install';
+import { BTN_PLAIN, BTN_PRIMARY, BTN_SOFT } from './button';
 import { Field } from './settings-ui';
 
 export type DeviceRow = SessionInfo & { current: boolean };
 type Pairing = { url: string; svg: string; expiresAt: number };
 
-const PILL =
-  'inline-flex h-11 cursor-pointer items-center gap-2 rounded-full px-5 transition-colors';
 const ICONS = { phone: Smartphone, tablet: Tablet, computer: Laptop };
 
 async function post<T>(path: string, body: object = {}): Promise<T> {
@@ -190,15 +189,11 @@ export function DevicesPanel({
           <div className="mt-2 flex gap-2">
             {/* Browsers that can install it offer a button of their own (Chrome, Edge, Android). */}
             {install.state === 'offer' && (
-              <button
-                type="button"
-                onClick={() => void install.install()}
-                className={`${PILL} bg-white/8 hover:text-white`}
-              >
+              <button type="button" onClick={() => void install.install()} className={BTN_SOFT}>
                 {m.install}
               </button>
             )}
-            <Link href="/" className={`${PILL} bg-white text-[oklch(0.15_0.006_265)]`}>
+            <Link href="/" className={BTN_PRIMARY}>
               {m.openMemory}
             </Link>
           </div>
@@ -207,11 +202,7 @@ export function DevicesPanel({
 
       {local && serving && !pairing && (
         <div className="mb-2 flex items-center justify-end gap-3">
-          <button
-            type="button"
-            onClick={() => void pair()}
-            className={`${PILL} bg-white text-[oklch(0.15_0.006_265)]`}
-          >
+          <button type="button" onClick={() => void pair()} className={BTN_PRIMARY}>
             <QrCode aria-hidden className="size-4" />
             {m.pair}
           </button>
@@ -238,11 +229,7 @@ export function DevicesPanel({
               {Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')}
             </span>
           </p>
-          <button
-            type="button"
-            onClick={() => setPairing(null)}
-            className={`${PILL} px-3 hover:text-white`}
-          >
+          <button type="button" onClick={() => setPairing(null)} className={BTN_PLAIN}>
             {m.cancel}
           </button>
         </section>
@@ -280,7 +267,7 @@ export function DevicesPanel({
                   type="button"
                   onClick={() => void revoke(d)}
                   aria-label={`${m.revoke}: ${m.kind[d.device.kind]}, ${label(d)}`}
-                  className={`${PILL} px-3 hover:text-white`}
+                  className={BTN_PLAIN}
                 >
                   {m.revoke}
                 </button>
@@ -313,19 +300,14 @@ export function DevicesPanel({
                 href="https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`${PILL} bg-white/8 hover:text-white`}
+                className={BTN_SOFT}
               >
                 {m.download}
               </a>
             )}
             {channel.state === 'signed-out' &&
               (signIn ? (
-                <a
-                  href={signIn}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`${PILL} bg-white/8 hover:text-white`}
-                >
+                <a href={signIn} target="_blank" rel="noopener noreferrer" className={BTN_SOFT}>
                   {m.openSignIn}
                 </a>
               ) : (
@@ -333,7 +315,7 @@ export function DevicesPanel({
                   type="button"
                   disabled={busy}
                   onClick={() => void startSignIn()}
-                  className={`${PILL} bg-white text-[oklch(0.15_0.006_265)]`}
+                  className={BTN_PRIMARY}
                 >
                   {m.signIn}
                 </button>
@@ -356,7 +338,7 @@ export function DevicesPanel({
                 <button
                   type="submit"
                   disabled={busy || !(address ?? channel.host)}
-                  className={`${PILL} bg-white text-[oklch(0.15_0.006_265)] disabled:opacity-50`}
+                  className={BTN_PRIMARY}
                 >
                   {busy ? m.turningOn : m.turnOn}
                 </button>
@@ -369,7 +351,7 @@ export function DevicesPanel({
                     type="button"
                     disabled={busy}
                     onClick={() => void switchRemote(true, channel.host)}
-                    className={`${PILL} bg-white text-[oklch(0.15_0.006_265)]`}
+                    className={BTN_PRIMARY}
                   >
                     {m.turnOnAgain}
                   </button>
@@ -378,7 +360,7 @@ export function DevicesPanel({
                   type="button"
                   disabled={busy}
                   onClick={() => void switchRemote(false)}
-                  className={`${PILL} px-3 hover:text-white`}
+                  className={BTN_PLAIN}
                 >
                   {m.turnOff}
                 </button>

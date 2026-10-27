@@ -1,11 +1,8 @@
 // The common pieces of Settings, as in the Cerebro before: the open section's title,
 // label-and-value lines, and the pills.
 
-export const PILL =
-  'inline-flex h-11 cursor-pointer items-center gap-2 rounded-full px-5 transition-colors';
-export const PRIMARY = `${PILL} bg-white text-[oklch(0.15_0.006_265)]`;
-export const SOFT = `${PILL} bg-white/8 hover:text-white`;
-export const PLAIN = `${PILL} px-3 hover:text-white`;
+// The buttons are the Cerebro's one button (button.ts).
+export { BTN_PLAIN as PLAIN, BTN_PRIMARY as PRIMARY, BTN_SOFT as SOFT } from './button';
 
 
 export function Line({ label, value }: { label: React.ReactNode; value: React.ReactNode }) {

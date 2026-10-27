@@ -74,7 +74,11 @@ p {
    circle. */
 .cb-botao,
 .cb-botao-sec {
+  /* The Cerebro's one button (docs/design.md, Botões): a short word stays a pill, never an oval. */
   min-height: 44px;
+  min-width: 96px;
+  max-width: min(100%, 280px);
+  overflow: hidden;
   padding: 0 20px;
   border-radius: 999px;
   display: inline-flex;
