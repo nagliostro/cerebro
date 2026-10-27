@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { cp, mkdir, rm, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { median, nowMs } from '../clock.ts';
@@ -10,15 +10,19 @@ import type { AskEvent } from '../providers/types.ts';
 import { buildEstimate, guard, type GuardWindow } from '../quota/guard.ts';
 import type { Queue } from '../queue.ts';
 import {
+  ATTACHMENTS,
   attachmentLines,
   listAttachments,
   takeUploads,
   type Attachment,
 } from '../research/attachments.ts';
+import { freeLicense, githubRepo, readRepo, RepoError, type Repo } from '../research/github.ts';
 import { readGuide, researchDir } from '../research/guide.ts';
 import { checkLibrary, vendorLibrary, vendorPath, type Library } from '../research/libraries.ts';
 import { readResearch, writeResearch, type Research } from '../research/record.ts';
 import { DEPTH_PAGES, readSettings } from '../settings.ts';
+import type { ToolInstalled } from '../tools/install.ts';
+import { planTool, ToolError, type RepoFacts, type ToolRecord } from '../tools/release.ts';
 import type { Rating, Tuner } from '../tuning/tuner.ts';
 import { readLocale, requestLocale } from './language.ts';
 import { chooseCode, isOwnCode, MAP, NOTES, outline, renderMap, type MapInput } from './map.ts';
@@ -53,6 +57,7 @@ import {
   type Plan,
   type PlanRow,
   type Plans,
+  type RepoCard,
   type Step,
 } from './plan.ts';
 import {
@@ -62,6 +67,8 @@ import {
   languageOf,
   PLAN_SYSTEM,
   planPrompt,
+  REPO_SYSTEM,
+  repoPrompt,
   researchPrompt,
   researchSystem,
   type NeuronSummary,
@@ -78,6 +85,13 @@ const THINK_MAX_MS = 5 * 60_000;
 const RESEARCH_MAX_MS = 20 * 60_000;
 const ANSWER_MAX_MS = 2 * 60_000;
 const CHECK_MAX_MS = 3 * 60_000;
+const SUMMARY_MAX_MS = 2 * 60_000;
+/** Downloading (up to 200 MB), checking and testing a program. */
+const TOOL_MAX_MS = 15 * 60_000;
+/** Beside an installed program (neurons/<id>/): where it came from and what its test saw. */
+export const TOOL_FILE = 'tool.json';
+/** A repository's facts, beside its README, in the request's research folder. */
+const REPO_FILE = 'repo.json';
 /** The Navegador, a craft neuron that comes with the Cerebro: born with the first research. */
 export const NAVEGADOR = 'navegador';
 const NAVEGADOR_APP = path.join(import.meta.dirname, '..', '..', 'factory', 'navegador');
@@ -144,6 +158,14 @@ const asking = (question: { text: string; options: string[] }) => ({
 });
 const unique = <T>(xs: T[]) => [...new Set(xs)];
 const normalize = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+/** What the owner chose to make of a repository, from the choice's words (either language). */
+export function repoChoice(text: string): RepoCard['choice'] | null {
+  const t = normalize(text).trim();
+  if (/^produ|ferramenta|\btool\b/.test(t)) return 'production';
+  if (/^ap+lica|^app\b|\btela\b|\bscreen\b/.test(t)) return 'application';
+  return null;
+}
 
 export class Builder {
   private d: BuilderDeps;
@@ -226,6 +248,15 @@ export class Builder {
         similar: target ? null : this.similar(request, neurons),
       },
     ];
+    // A GitHub repository describes itself: read (no AI), summed up (cheap), and the owner says
+    // what to make of it, before any Navegador.
+    const repo = target ? null : githubRepo(cloneSource(request) ?? '');
+    if (repo) {
+      steps.push({ kind: 'repo', name: `${repo.owner}/${repo.name}`, done: false });
+      this.d.plans.update(id, { steps });
+      void this.readRepo(id, repo);
+      return id;
+    }
     // A copy (a link to the original, or a picture of it), new or into an existing neuron:
     // researched first.
     if (cloneSource(request) || attached.some((a) => a.kind === 'image')) {
@@ -238,6 +269,245 @@ export class Builder {
     this.d.plans.update(id, { steps });
     await this.think(id);
     return id;
+  }
+
+  /** Reads a repository from GitHub's API, keeps its README with the request, and sums it up. */
+  private async readRepo(id: string, which: { owner: string; name: string }) {
+    let repo: Repo;
+    try {
+      repo = await readRepo(which);
+    } catch (e) {
+      const why = e instanceof RepoError ? e.message : `github-busy: ${(e as Error).message}`;
+      if (this.d.plans.get(id)?.status === 'thinking')
+        this.d.plans.update(id, { status: 'failed', error: why });
+      return this.changed(id);
+    }
+    // Canceled while it was being read: nothing goes on.
+    const row = this.d.plans.get(id);
+    if (row?.status !== 'thinking' || row.thinkJob) return;
+    const dir = researchDir(this.d.dataDir, id);
+    await mkdir(path.join(dir, ATTACHMENTS), { recursive: true });
+    const { readme, ...facts } = repo;
+    await writeFile(path.join(dir, REPO_FILE), JSON.stringify(facts));
+    if (readme) await writeFile(path.join(dir, ATTACHMENTS, 'README.md'), readme);
+    const card: RepoCard = {
+      full: `${repo.owner}/${repo.name}`,
+      url: repo.url,
+      description: repo.description,
+      language: repo.language,
+      license: repo.license,
+      free: freeLicense(repo),
+      stars: repo.stars,
+      archived: repo.archived,
+      release: repo.release?.tag ?? null,
+      summary: '',
+    };
+    const steps = row.steps.map((s) => (s.kind === 'repo' ? { ...s, done: true } : s));
+    try {
+      const job = await this.d.enqueueAsk(
+        {
+          provider: 'auto',
+          role: 'cheap',
+          effort: 'low',
+          mode: 'text',
+          kind: 'summary',
+          system: REPO_SYSTEM,
+          prompt: repoPrompt(repo, row.locale),
+        },
+        { maxMs: SUMMARY_MAX_MS, maxAttempts: 2 },
+      );
+      this.d.plans.update(id, {
+        plan: { ...asking({ text: card.full, options: [] }), repo: card },
+        thinkJob: job,
+        steps: [...steps, { kind: 'summary', done: false }],
+        startedAt: nowMs(),
+      });
+    } catch {
+      // No AI to sum it up: its own description says what it is, and the owner still chooses.
+      this.d.plans.update(id, { status: 'questions', plan: this.choosing(card, ''), steps });
+    }
+    this.changed(id);
+  }
+
+  /** The question about a repository: its summary, and production or application. */
+  private choosing(card: RepoCard, summary: string): Plan {
+    const said = summary
+      .replace(/[*_`#>]+/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 600);
+    return {
+      ...asking({ text: card.full, options: ['production', 'application'] }),
+      repo: { ...card, summary: said || card.description || card.full },
+    };
+  }
+
+  /** The summary came: the owner chooses what to make of the repository. */
+  private summarized(
+    row: PlanRow,
+    status: 'done' | 'failed' | 'canceled',
+    result: { text?: string; costUsd?: number | null } | undefined,
+  ) {
+    const steps = row.steps.map((s) =>
+      s.kind === 'summary' ? { ...s, done: true, costUsd: result?.costUsd ?? null } : s,
+    );
+    if (status === 'canceled') {
+      this.d.plans.update(row.id, { status: 'canceled', steps });
+      return;
+    }
+    // A summary that failed costs the owner nothing more: the description stands in for it.
+    this.d.plans.update(row.id, {
+      status: 'questions',
+      plan: this.choosing(row.plan!.repo!, status === 'done' ? (result?.text ?? '') : ''),
+      steps,
+      addThinkCost: result?.costUsd ?? 0,
+    });
+  }
+
+  /**
+   * Production: what installing the repository's program would be, pinned, for the owner's
+   * Accept (no AI). When it cannot be (no free license, no release, no file for this computer,
+   * no checksum), the plan ends saying why.
+   */
+  private async planTool(id: string, repo: RepoCard) {
+    const row = this.mustGet(id);
+    let facts: RepoFacts;
+    try {
+      facts = JSON.parse(
+        await readFile(path.join(researchDir(this.d.dataDir, id), REPO_FILE), 'utf8'),
+      ) as RepoFacts;
+    } catch {
+      throw new BuildError('the repository was not read');
+    }
+    const asked = { ...row.plan!, repo };
+    try {
+      const tool = await planTool(facts);
+      const name = facts.name
+        .replace(/[-_.]+/g, ' ')
+        .trim()
+        .slice(0, 24);
+      this.d.plans.update(id, {
+        status: 'ready',
+        estimate: null,
+        plan: {
+          ...asked,
+          ready: true,
+          questions: [],
+          options: [],
+          name: name.charAt(0).toUpperCase() + name.slice(1),
+          role: 'craft',
+          understood: repo.summary,
+          tool,
+        },
+        steps: [...row.steps, { kind: 'release', tag: tool.tag, asset: tool.asset.name }],
+      });
+    } catch (e) {
+      const why = e instanceof ToolError ? e.message : `github-busy: ${(e as Error).message}`;
+      this.d.plans.update(id, { status: 'failed', error: why, plan: asked });
+    }
+    this.changed(id);
+  }
+
+  /** Accepted: the pinned file is downloaded, checked, unpacked and tested, in a worker. */
+  private async installTool(row: PlanRow, tool: NonNullable<Plan['tool']>) {
+    const draft = await makeDraft(this.d.dataDir, row.id);
+    const name = tool.repo.split('/')[1]!;
+    try {
+      const job = await this.d.enqueueJob(
+        'tool',
+        {
+          dir: draft,
+          url: tool.asset.url,
+          sha256: tool.sha256,
+          bytes: tool.asset.bytes,
+          format: tool.format,
+          asset: tool.asset.name,
+          hints: unique([name, name.replace(/[-_.]?(cli|rs|go|app)$/i, '')]),
+        },
+        { maxMs: TOOL_MAX_MS, maxAttempts: 1 },
+      );
+      this.d.plans.update(row.id, {
+        status: 'building',
+        buildJob: job,
+        color: colorOf(this.d.graph.suggestHue()),
+        steps: [
+          ...row.steps.filter((s) => s.kind !== 'install' && s.kind !== 'smoke'),
+          { kind: 'install', asset: tool.asset.name, done: false },
+        ],
+        error: null,
+        startedAt: nowMs(),
+      });
+    } catch (e) {
+      await dropDraft(this.d.dataDir, row.id);
+      throw new BuildError((e as Error).message);
+    }
+    this.changed(row.id);
+  }
+
+  /** The program is in the draft and ran: it becomes a craft neuron, with its folder. */
+  private async toolInstalled(
+    row: PlanRow,
+    status: 'done' | 'failed' | 'canceled',
+    result: ToolInstalled | undefined,
+    error?: string,
+  ) {
+    if (status !== 'done' || !result) {
+      await dropDraft(this.d.dataDir, row.id);
+      // The worker's own codes (tool-…) say what went wrong; anything else, as it came.
+      const code = error?.match(/\btool-[a-z-]+/)?.[0];
+      this.d.plans.update(row.id, {
+        status: status === 'canceled' ? 'canceled' : 'failed',
+        error: code ?? error ?? null,
+      });
+      return;
+    }
+    const plan = row.plan!;
+    const hue = Number(row.color?.match(/ (\d{1,3})\)$/)?.[1]);
+    const id = this.d.graph.addNeuron({
+      name: plan.name,
+      role: 'craft',
+      hue: Number.isFinite(hue) ? hue : undefined,
+    });
+    const home = path.join(this.d.dataDir, 'neurons', id);
+    try {
+      await mkdir(home, { recursive: true });
+      await rename(path.join(draftDir(this.d.dataDir, row.id), 'tool'), path.join(home, 'tool'));
+      const record: ToolRecord = {
+        ...plan.tool!,
+        program: result.program,
+        version: result.version,
+        installedAt: nowMs(),
+      };
+      await writeFile(path.join(home, TOOL_FILE), JSON.stringify(record, null, 2));
+    } catch (e) {
+      // Half a neuron is none: it leaves the graph with its folder.
+      this.d.graph.removeNeuron(id);
+      await rm(home, { recursive: true, force: true });
+      await dropDraft(this.d.dataDir, row.id);
+      this.d.plans.update(row.id, { status: 'failed', error: (e as Error).message });
+      return;
+    }
+    await dropDraft(this.d.dataDir, row.id);
+    this.d.graph.recordConversation(DOMINUS_ID, id);
+    this.d.graph.recordUse(id, { kind: 'built', request: row.request });
+    await this.writeMap(id);
+    this.d.plans.update(row.id, {
+      status: 'built',
+      neuron: id,
+      steps: [
+        ...row.steps.map((s) => (s.kind === 'install' ? { ...s, done: true } : s)),
+        { kind: 'smoke', version: result.version },
+      ],
+      buildCostUsd: 0,
+    });
+    this.d.emit('graph.changed', {});
+  }
+
+  /** The program a neuron carries (Production), as installed; null for an application. */
+  async tool(id: string): Promise<ToolRecord | null> {
+    return readFile(path.join(this.d.dataDir, 'neurons', id, TOOL_FILE), 'utf8')
+      .then((t) => JSON.parse(t) as ToolRecord)
+      .catch(() => null);
   }
 
   /** Plans that only translate an application: accepted as soon as they are ready. */
@@ -301,6 +571,9 @@ export class Builder {
             locale: row.locale,
             exchanges: row.exchanges,
             attached: await attachmentLines(dir),
+            repo: await readFile(path.join(dir, REPO_FILE), 'utf8')
+              .then((t) => ({ readme: '', ...JSON.parse(t) }) as Repo)
+              .catch(() => undefined),
           }),
         },
         { maxMs: RESEARCH_MAX_MS, maxAttempts: 1 },
@@ -358,7 +631,10 @@ export class Builder {
     const add = (name: string, names: string[]) =>
       fields.set(name, new Set([...(fields.get(name) ?? []), ...names]));
     for (const c of this.d.contracts.contract(row.target).collections)
-      add(c.name, c.fields.map((f) => f.name));
+      add(
+        c.name,
+        c.fields.map((f) => f.name),
+      );
     for (const c of this.d.plans.recentBuilt(row.target)[0]?.plan?.collections ?? [])
       add(c.name, c.fields);
     return plan.collections.every(
@@ -385,7 +661,11 @@ export class Builder {
     const notes = paths.includes(NOTES) ? await readText(dir, NOTES).catch(() => '') : '';
     const collections = new Map<string, MapInput['collections'][number]>();
     for (const c of this.d.contracts.contract(id).collections)
-      collections.set(c.name, { name: c.name, fields: c.fields.map((f) => f.name), count: c.count });
+      collections.set(c.name, {
+        name: c.name,
+        fields: c.fields.map((f) => f.name),
+        count: c.count,
+      });
     for (const c of this.d.plans.recentBuilt(id)[0]?.plan?.collections ?? [])
       if (!collections.has(c.name)) collections.set(c.name, { ...c, count: 0 });
     const links = this.d.graph.view().links;
@@ -404,6 +684,7 @@ export class Builder {
           .map((p) => p.split('/')[1]!.replace('__', '/')),
       ),
       requests: this.d.graph.uses(id, 5).items,
+      tool: await this.tool(id),
       notes,
       maxNotes,
     });
@@ -622,6 +903,8 @@ export class Builder {
     const text = typeof body.text === 'string' ? body.text.trim() : '';
     if (!text || text.length > MAX_REQUEST) throw new BuildError('invalid text');
     if (row.status !== 'questions' && row.status !== 'ready') throw new BuildError('not waiting');
+    // A program is installed as its author published it: there is nothing in it to change.
+    if (row.plan?.tool) throw new BuildError('a program is installed as it is');
     const kind = row.status === 'questions' ? 'answer' : 'change';
     // What came with the answer (a drawing of the screen wanted) joins the request's attachments.
     let files: string[] = [];
@@ -635,9 +918,24 @@ export class Builder {
       } catch (e) {
         throw new BuildError((e as Error).message);
       }
+    const repo = row.status === 'questions' ? row.plan?.repo : undefined;
+    const choice = repo && !repo.choice ? repoChoice(text) : null;
+    if (repo && !repo.choice && !choice) throw new BuildError('choose production or application');
     this.d.plans.update(id, {
       exchanges: [...row.exchanges, { kind, text, ...(files.length ? { files } : {}) }],
     });
+    if (repo && choice === 'production') return this.planTool(id, { ...repo, choice });
+    if (repo && choice === 'application') {
+      // The copy's way, with the README in hand instead of GitHub's pages.
+      await this.ensureNavegador();
+      const guide = await readGuide(this.d.dataDir);
+      this.d.plans.update(id, {
+        plan: { ...row.plan!, repo: { ...repo, choice } },
+        steps: [...row.steps, { kind: 'guide', lessons: guide.lessons }],
+      });
+      await this.research(id, guide.text);
+      return;
+    }
     // A picture is seen only by the research: it looks at it again before the plan.
     if (files.some((f) => /\.(png|jpg|webp|gif)$/.test(f))) {
       await this.ensureNavegador();
@@ -656,6 +954,7 @@ export class Builder {
       (i): i is number => Number.isInteger(i) && i >= 0 && i < found,
     );
     if (row.status !== 'ready' || !row.plan?.ready) throw new BuildError('no plan to build');
+    if (row.plan.tool) return this.installTool(row, row.plan.tool);
     const target = row.target ? this.d.graph.neuron(row.target) : null;
     if (row.target && !target) throw new BuildError('unknown neuron');
     const color = target?.color ?? colorOf(this.d.graph.suggestHue());
@@ -870,15 +1169,15 @@ export class Builder {
     // count as a tenth, so a prompt that keeps the cache is not taken for an expensive one.
     this.d.tuner.spent(
       row.id,
-      (result?.inputTokens ?? 0) -
-        0.9 * (result?.cachedTokens ?? 0) +
-        (result?.outputTokens ?? 0),
+      (result?.inputTokens ?? 0) - 0.9 * (result?.cachedTokens ?? 0) + (result?.outputTokens ?? 0),
       result?.costUsd ?? 0,
     );
     if (row.researchJob === job && row.status === 'researching')
       await this.researched(row, status, result, data.error);
     else if (row.thinkJob === job && row.status === 'thinking')
       await this.thought(row, status, result, data.error);
+    else if (row.buildJob === job && row.status === 'building' && row.plan?.tool)
+      await this.toolInstalled(row, status, data.result as ToolInstalled | undefined, data.error);
     else if (row.buildJob === job && row.status === 'building') {
       const last = row.steps.at(-1);
       if (last?.kind === 'verify' && !last.done) await this.checked(row, status, data);
@@ -945,6 +1244,7 @@ export class Builder {
     result: { text?: string; costUsd?: number | null } | undefined,
     error?: string,
   ) {
+    if (row.plan?.repo && !row.plan.repo.summary) return this.summarized(row, status, result);
     const cost = result?.costUsd ?? 0;
     const steps = row.steps.map((s) =>
       s.kind === 'think' ? { kind: 'think', done: true, costUsd: result?.costUsd ?? null } : s,

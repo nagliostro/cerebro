@@ -1,5 +1,5 @@
 import { nowMs } from '../clock.ts';
-import { BUILD_TAG, PLAN_TAG, RESEARCH_TAG } from '../builder/prompts.ts';
+import { BUILD_TAG, PLAN_TAG, REPO_TAG, RESEARCH_TAG } from '../builder/prompts.ts';
 import { ANSWER_TAG } from '../builder/talk.ts';
 import { writeText } from './file-tools.ts';
 import type { AiProvider, AskEvent, AskRequest } from './types.ts';
@@ -169,7 +169,10 @@ async function research(req: AskRequest, emit: (e: AskEvent) => void) {
     await step({ type: 'tool', action: 'record', target: 'question' }, 'question', {
       question: 'Which feature should I copy?',
       // One long, as a real research gives them: a sentence, not a word.
-      options: ['Yield simulator', 'Comparator of investments side by side, with the yield of each one after taxes and fees'],
+      options: [
+        'Yield simulator',
+        'Comparator of investments side by side, with the yield of each one after taxes and fees',
+      ],
     });
     return 'Asked which feature.';
   }
@@ -219,9 +222,12 @@ async function build(req: AskRequest, emit: (e: AskEvent) => void) {
         ['style.css', `:root { --cb-cor: ${color}; }\n`],
         ['app.js', SCRIPT],
         // The notes for the next change, with what was asked last.
-        ['NOTAS.md', `Asked last: ${asked}
+        [
+          'NOTAS.md',
+          `Asked last: ${asked}
 Title: index.html #asked
-`],
+`,
+        ],
       ];
   // A copy with an answer key: the computation and its check. [check-fail-once] gets it wrong
   // in the first round, to test the round back to the Builder.
@@ -275,7 +281,13 @@ export function simulated(): AiProvider {
         text = JSON.stringify(plan(req.prompt));
       } else if (req.system?.startsWith(RESEARCH_TAG) && req.cwd)
         text = await research(req, (e) => onEvent?.(e));
-      else if (req.system?.startsWith(BUILD_TAG) && req.cwd)
+      else if (req.system?.startsWith(REPO_TAG)) {
+        // A repository in a sentence: its name and what its description says.
+        await sleep(STEP_MS, req.signal);
+        const name = req.prompt.match(/^Repository: (\S+)/m)?.[1] ?? 'it';
+        const what = req.prompt.match(/^Description: (.*)$/m)?.[1] ?? 'no description';
+        text = `${name} is a project on GitHub. Its author says: ${what}.`;
+      } else if (req.system?.startsWith(BUILD_TAG) && req.cwd)
         text = await build(req, (e) => onEvent?.(e));
       else if (req.system?.startsWith(ANSWER_TAG)) {
         await sleep(STEP_MS, req.signal);
@@ -290,8 +302,7 @@ export function simulated(): AiProvider {
                 answer: `${name} answers (${req.role}): ${question}`,
                 change: question.includes('[change]'),
               });
-      }
-      else text = `echo(${req.role}, ${req.mode}): ${req.prompt}`;
+      } else text = `echo(${req.role}, ${req.mode}): ${req.prompt}`;
       onEvent?.({ type: 'text', text });
       return {
         text,

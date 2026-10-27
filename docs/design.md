@@ -38,6 +38,27 @@ e `.cb-botao-sec` do kit). Nunca crie um botão com altura, largura ou cantos pr
   retângulo de cantos de 10px com contorno fino, o texto em quantas linhas precisar, um círculo à
   esquerda; a escolhida acende o contorno e preenche o círculo. Nada é cortado.
 
+## Link do GitHub
+
+Um link de repositório (github.com/dono/nome) não abre o Navegador. O plano pergunta "Criar um
+neurônio com ele?": o nome do repositório como título de seção, o resumo de duas ou três frases
+(modelo barato), uma linha de fatos (linguagem · licença · estrelas · versão · link "GitHub") e,
+quando for o caso, um aviso de licença não livre ou de repositório arquivado. Abaixo, "De que
+tipo", com duas caixas de seleção de título e descrição: **Produção** (ferramenta que o Dominus e
+os neurônios usam) e **Aplicação** (uma tela para o dono). Principal: Continuar; texto: Rejeitar.
+
+**Produção** vira um plano de instalação, sem IA. Em "O que será instalado" aparecem a versão e a
+data, o arquivo escolhido para este computador (link, tamanho, sistema), a licença livre e o
+SHA-256 (do GitHub ou do autor). Em "Como é instalado", uma lista numerada: só esse arquivo, sem
+compilar; confere o SHA-256; roda uma vez com --version; desinstalar é remover o neurônio. No pé,
+"Instalar não usa IA", principal **Instalar** e texto Rejeitar. Não tem Alterar: um programa é
+instalado como o autor publicou. Sem licença livre, versão, arquivo para este computador ou
+checksum, o plano termina dizendo o motivo.
+
+O neurônio de Produção não tem aplicação. A tela dele mostra "Programa instalado": uma lista de
+nome e valor (origem, versão, arquivo, programa, o que respondeu, licença, SHA-256, data) e o
+caminho para desinstalar em Configurações → Neurônios.
+
 ## Conversa com o neurônio
 
 O lápis abre a conversa com o neurônio (`apps/web/components/adjust-panel.tsx`), no padrão dos apps

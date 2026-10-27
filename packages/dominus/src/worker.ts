@@ -103,6 +103,13 @@ handlers.checks = async (payload) => {
   return runChecks(p.dir, p.cases);
 };
 
+/** A program the owner accepted, installed from its pinned release (no AI: costs nothing). */
+handlers.tool = async (payload) => {
+  const { installTool, isToolJob } = await import('./tools/install.ts');
+  if (!isToolJob(payload)) throw new Error('invalid tool payload');
+  return installTool(payload);
+};
+
 // Jobs that exist only to test the core: steps with checkpoints, and a worker that hangs.
 if (process.env.CEREBRO_TEST_JOBS === '1') {
   handlers.steps = async (payload, checkpoint) => {

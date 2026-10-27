@@ -82,6 +82,23 @@ function stepPoints(
           busy: false,
           ai: false,
         };
+      // A GitHub repository: read with no AI, summed up by a cheap one (gold).
+      case 'repo':
+        return { key, text: b.step.repo(s.name, s.done), busy: !s.done, ai: false };
+      case 'summary':
+        return {
+          key,
+          text: s.done ? b.step.summarized(b.usd(s.costUsd ?? 0)) : b.step.summarizing,
+          busy: !s.done,
+          ai: true,
+        };
+      // A program's release and its installation: code, no AI.
+      case 'release':
+        return { key, text: b.step.release(s.tag, s.asset), busy: false, ai: false };
+      case 'install':
+        return { key, text: b.step.install(s.asset, s.done), busy: !s.done, ai: false };
+      case 'smoke':
+        return { key, text: b.step.smoke(s.version), busy: false, ai: false };
       case 'think':
         return {
           key,
@@ -443,13 +460,15 @@ export function Construction({
     caption = (
       <>
         <p className="cb-pill text-(--cb-highlight)">
-          {(target ? b.adjusted : b.built)(neuronName)}
+          {(plan.plan?.tool ? b.installed : target ? b.adjusted : b.built)(neuronName)}
         </p>
         {verified && <p className="cb-pill">{b.verified(verified.passed, verified.total)}</p>}
         <p className="cb-pill text-(--cb-cost)">
-          {(target ? b.adjustCost : b.buildCost)(
-            plan.buildCostUsd === null ? null : b.usd(plan.buildCostUsd),
-          )}
+          {plan.plan?.tool
+            ? b.installCost
+            : (target ? b.adjustCost : b.buildCost)(
+                plan.buildCostUsd === null ? null : b.usd(plan.buildCostUsd),
+              )}
         </p>
         {/* The owner's word on the result tunes the Dominus (no AI): which values solve best. */}
         {/* The question on its own line: the three options keep their size on any screen. */}

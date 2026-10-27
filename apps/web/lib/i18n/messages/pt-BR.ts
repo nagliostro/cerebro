@@ -38,6 +38,20 @@ export const ptBR: Messages = {
   },
   appTitle: (name: string) => `Aplicação ${name}`,
   appMissing: (name: string) => `A aplicação de ${name} ainda não foi construída.`,
+  tool: {
+    title: 'Programa instalado',
+    from: 'Origem',
+    release: 'Versão',
+    file: 'Arquivo',
+    program: 'Programa',
+    answered: 'Respondeu',
+    license: 'Licença',
+    checksum: 'SHA-256',
+    installed: 'Instalado em',
+    helpOnly: 'respondeu a --help',
+    note: 'O Dominus e os outros neurônios ainda não chamam este programa.',
+    remove: 'Para desinstalar, remova o neurônio em Configurações → Neurônios.',
+  },
   network: {
     button: (name: string) => `Internet de ${name}`,
     buttonAsking: (name: string) => `Internet de ${name}: um site pede acesso`,
@@ -144,6 +158,15 @@ export const ptBR: Messages = {
       checked: (files: number, size: string) =>
         `Conferido: ${files} ${files === 1 ? 'arquivo' : 'arquivos'}, ${size}`,
       waiting: (time: string) => `Esperando a cota renovar às ${time}`,
+      repo: (name: string, done: boolean) =>
+        done ? `${name} lido no GitHub · sem IA` : `Lendo ${name} no GitHub`,
+      summarizing: 'Resumindo o repositório',
+      summarized: (cost: string) => `Resumo pronto · ${cost}`,
+      release: (tag: string, asset: string) => `Versão ${tag}: ${asset} · sem IA`,
+      install: (asset: string, done: boolean) =>
+        done ? `${asset} conferido pelo SHA-256 e instalado` : `Baixando e conferindo ${asset}`,
+      smoke: (version: string | null) =>
+        version ? `Funciona: ${version}` : 'Funciona: respondeu a --help',
       guide: (lessons: number) =>
         `Guia de clonar lido${lessons ? ` · ${lessons} ${lessons === 1 ? 'lição' : 'lições'} desta instalação` : ''}`,
       browse: (host: string, pages: number, done: boolean) =>
@@ -227,6 +250,24 @@ export const ptBR: Messages = {
       'none-ready': 'Nenhuma IA pronta. Conecte uma IA e tente de novo.',
       'all-out-of-quota': 'Todas as IAs estão sem cota agora.',
       'bad-plan': 'O plano veio num formato que não deu para ler.',
+      'repo-missing':
+        'Não achei esse repositório no GitHub. Ele pode ser privado ou ter mudado de nome.',
+      'github-busy': 'O GitHub não respondeu agora. Tente de novo em alguns minutos.',
+      'tool-not-free':
+        'A licença não é livre, ou o GitHub não a reconheceu: não instalo programas assim. Ele ainda pode virar uma aplicação.',
+      'tool-no-release':
+        'O autor não publicou uma versão oficial para baixar. Compilar o código rodaria os scripts dele, então não instalo. Ele ainda pode virar uma aplicação.',
+      'tool-no-file':
+        'A última versão não traz um programa pronto para este computador. Ele ainda pode virar uma aplicação.',
+      'tool-too-large': 'O programa passa de 200 MB. Nada foi instalado.',
+      'tool-no-checksum': 'A versão não tem um SHA-256 para conferir o arquivo, então não instalo.',
+      'tool-checksum-mismatch':
+        'O arquivo baixado não bate com o SHA-256 da versão. Nada foi instalado.',
+      'tool-bad-archive':
+        'O arquivo da versão veio com um formato inválido ou com caminhos para fora da pasta. Nada foi instalado.',
+      'tool-no-program': 'Não achei o programa dentro do arquivo da versão. Nada foi instalado.',
+      'tool-smoke-failed':
+        'O programa não respondeu a --version nem a --help neste computador. Nada foi instalado.',
       'bad-build': 'A construção não deixou uma aplicação que funcione. Nada foi criado.',
       stale: 'Esse plano já tinha mudado. Nada mais foi feito.',
       attachment:
@@ -245,6 +286,42 @@ export const ptBR: Messages = {
     chooseLead: (n: number) => `O app tem ${n} ${n === 1 ? 'função' : 'funções'}`,
     chooseNote: 'Copiar uma só sai melhor e mais barato. As outras podem virar neurônios depois.',
     researchThis: 'Pesquisar esta',
+    repoTitle: 'Criar um neurônio com ele?',
+    repoLead: 'De que tipo',
+    repoKinds: {
+      production: {
+        label: 'Produção',
+        detail: 'Uma ferramenta que o Dominus e os outros neurônios usam, como o Navegador.',
+      },
+      application: {
+        label: 'Aplicação',
+        detail: 'Uma tela para você usar, feita a partir do que ele faz.',
+      },
+    },
+    repoGo: 'Continuar',
+    repoStars: (n: string) => `${n} estrelas`,
+    repoRelease: (tag: string) => `versão ${tag}`,
+    repoNoRelease: 'sem versão publicada',
+    repoNotFree: 'Licença não livre ou não informada: usar pode ter condições.',
+    repoArchived: 'Arquivado pelo autor: não recebe mais atualizações.',
+    toolWhat: 'O que será instalado',
+    toolRelease: (tag: string, date: string) => `Versão ${tag}, publicada em ${date}`,
+    toolFile: (size: string, system: string) => `${size}, feito para ${system}`,
+    toolLicense: (license: string) => `Licença ${license}: livre`,
+    toolChecksum: (from: 'github' | 'author', hash: string) =>
+      `SHA-256 ${from === 'github' ? 'registrado pelo GitHub' : 'publicado pelo autor'}: ${hash}…`,
+    toolWhere: 'Fica na pasta do neurônio (tool/), separado do resto do Cerebro.',
+    toolHow: 'Como é instalado',
+    toolSteps: [
+      'Baixa só esse arquivo, da versão oficial do autor. Nada é compilado.',
+      'Confere o SHA-256. Se não bater, para e não instala nada.',
+      'Roda o programa uma vez com --version, para ver se funciona neste computador.',
+      'Para desinstalar, remova o neurônio em Configurações: a pasta inteira vai embora.',
+    ],
+    toolNoAi: 'Instalar não usa IA: não gasta nada.',
+    install: 'Instalar',
+    installed: (name: string) => `${name} · instalado`,
+    installCost: 'Instalar não usou IA',
     observed: 'O que observei',
     shot: 'A tela do original',
     fields: 'campos',

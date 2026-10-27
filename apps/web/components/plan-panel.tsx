@@ -56,6 +56,43 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 type Research = NonNullable<PlanRow['research']>;
+type Tool = NonNullable<NonNullable<PlanRow['plan']>['tool']>;
+
+const mb = (bytes: number, locale: Locale) =>
+  `${(bytes / 1024 / 1024).toLocaleString(locale, { maximumFractionDigits: 1 })} MB`;
+
+/** Production: the program to install, pinned (release, file, checksum), and how it is done. */
+function ToolPlan({ tool, m, locale }: { tool: Tool; m: Messages['build']; locale: Locale }) {
+  const date = new Date(`${tool.date}T12:00:00Z`).toLocaleDateString(locale, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  return (
+    <>
+      <Section title={m.toolWhat}>
+        <p>{m.toolRelease(tool.tag, date)}</p>
+        <p>
+          <a
+            href={tool.asset.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-(--cb-highlight) underline decoration-white/25 underline-offset-[3px]"
+          >
+            {tool.asset.name}
+          </a>{' '}
+          · {m.toolFile(mb(tool.asset.bytes, locale), tool.system)}
+        </p>
+        <p>{m.toolLicense(tool.license)}</p>
+        <p>{m.toolChecksum(tool.checksum, tool.sha256.slice(0, 16))}</p>
+        <p className="mt-1.5">{m.toolWhere}</p>
+      </Section>
+      <Section title={m.toolHow}>
+        <Numbered items={m.toolSteps} />
+      </Section>
+    </>
+  );
+}
 
 /** Where a rule or finding came from: a link to it (by its site), or the original itself. */
 function Source({ source, observed }: { source: string; observed: string }) {
@@ -183,6 +220,11 @@ export function PlanPanel({
   const asking = plan.status === 'questions';
   // The research asked which feature: its options, as one choice.
   const options = asking ? (p.options ?? []) : [];
+  // A GitHub repository: what it is, and what to make of it (production or application).
+  const repo = asking ? p.repo : undefined;
+  // Production: the program to install, pinned; nothing in it to change.
+  const tool = !asking ? p.tool : undefined;
+  const kindOf = (o: string) => m.repoKinds[o as keyof typeof m.repoKinds];
   const r = plan.research?.feature ? plan.research : null;
   const adjusting = !!plan.target;
   const nameOf = (id: string) => others.find((o) => o.id === id);
@@ -236,7 +278,13 @@ export function PlanPanel({
             />
           )}
           <h2 className="text-(--cb-highlight)">
-            {options.length ? m.chooseTitle : asking ? m.questionsTitle : p.name}
+            {repo
+              ? m.repoTitle
+              : options.length
+                ? m.chooseTitle
+                : asking
+                  ? m.questionsTitle
+                  : p.name}
           </h2>
           {!asking && <span>· {m.role[p.role]}</span>}
         </div>
@@ -249,10 +297,40 @@ export function PlanPanel({
           </>
         )}
 
+        {repo && (
+          <Section title={repo.full}>
+            <p>{repo.summary}</p>
+            <p className="mt-1.5">
+              {[
+                repo.language,
+                repo.license,
+                m.repoStars(repo.stars.toLocaleString(locale)),
+                repo.release ? m.repoRelease(repo.release) : m.repoNoRelease,
+              ]
+                .filter(Boolean)
+                .join(' · ')}{' '}
+              ·{' '}
+              <a
+                href={repo.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="text-(--cb-highlight) underline"
+              >
+                GitHub
+              </a>
+            </p>
+            {!repo.free && <p className="mt-1.5">{m.repoNotFree}</p>}
+            {repo.archived && <p className="mt-1.5">{m.repoArchived}</p>}
+          </Section>
+        )}
         {options.length ? (
-          <Section title={m.chooseLead(options.length)}>
+          <Section title={repo ? m.repoLead : m.chooseLead(options.length)}>
             {/* Choice boxes, not buttons: a feature's name is a sentence, never cut. */}
-            <div role="radiogroup" aria-label={m.chooseTitle} className="grid gap-2">
+            <div
+              role="radiogroup"
+              aria-label={repo ? m.repoTitle : m.chooseTitle}
+              className="grid gap-2"
+            >
               {options.map((o, i) => (
                 <button
                   key={o}
@@ -277,11 +355,18 @@ export function PlanPanel({
                   <span aria-hidden className={choiceMark(choice === i)}>
                     {choice === i && <span className="size-2 rounded-full bg-white" />}
                   </span>
-                  <span className="min-w-0 flex-1">{o}</span>
+                  {repo ? (
+                    <span className="grid min-w-0 flex-1 gap-0.5">
+                      <span className="text-(--cb-highlight)">{kindOf(o).label}</span>
+                      <span>{kindOf(o).detail}</span>
+                    </span>
+                  ) : (
+                    <span className="min-w-0 flex-1">{o}</span>
+                  )}
                 </button>
               ))}
             </div>
-            <p className="mt-1.5">{m.chooseNote}</p>
+            {!repo && <p className="mt-1.5">{m.chooseNote}</p>}
           </Section>
         ) : asking ? (
           <Section title={m.questionsLead}>
@@ -293,6 +378,26 @@ export function PlanPanel({
               ))}
             />
           </Section>
+        ) : tool ? (
+          <>
+            <Section title={m.understood}>
+              <p>{p.understood}</p>
+              {p.repo && (
+                <p className="mt-1.5">
+                  <a
+                    href={p.repo.url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="text-(--cb-highlight) underline"
+                  >
+                    {p.repo.full}
+                  </a>
+                  {p.repo.archived && ` · ${m.repoArchived}`}
+                </p>
+              )}
+            </Section>
+            <ToolPlan tool={tool} m={m} locale={locale} />
+          </>
         ) : (
           <>
             {p.existing && nameOf(p.existing) && (
@@ -539,10 +644,12 @@ export function PlanPanel({
             <button
               ref={primary}
               type="button"
-              onClick={() => void onAnswer(options[choice]!)}
+              onClick={() =>
+                void onAnswer(repo ? kindOf(options[choice]!).label : options[choice]!)
+              }
               className={PRIMARY}
             >
-              {m.researchThis}
+              {repo ? m.repoGo : m.researchThis}
             </button>
             <span className="flex-1" />
             <button type="button" onClick={onReject} className={PLAIN}>
@@ -580,6 +687,17 @@ export function PlanPanel({
                 {m.reject}
               </button>
             )}
+          </>
+        ) : tool ? (
+          <>
+            <p className="w-full">{m.toolNoAi}</p>
+            <button ref={primary} type="button" onClick={() => onAccept([])} className={PRIMARY}>
+              {m.install}
+            </button>
+            <span className="flex-1" />
+            <button type="button" onClick={onReject} className={PLAIN}>
+              {m.reject}
+            </button>
           </>
         ) : elsewhere ? (
           <>

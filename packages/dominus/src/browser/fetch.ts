@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { createWriteStream } from 'node:fs';
 import http from 'node:http';
 import https from 'node:https';
 import type { LookupFunction } from 'node:net';
@@ -78,6 +80,72 @@ export async function netGet(raw: string, allowed: (host: string) => boolean): P
     if (!allowed(url.hostname)) throw new BlockedError(`not allowed: ${url.hostname}`);
     const r = await once(url);
     if (!r.location) return { status: r.status, type: r.type, body: r.body, url: url.href };
+    url = await checkUrl(new URL(r.location, url).href);
+  }
+  throw new BlockedError('too many redirects');
+}
+
+/** A download stalls when no byte comes for this long. */
+const IDLE_MS = 30_000;
+
+function saveOnce(
+  url: URL,
+  file: string,
+  maxBytes: number,
+): Promise<{ location?: string; bytes: number; sha256: string }> {
+  return new Promise((resolve, reject) => {
+    const req = https.get(
+      url,
+      {
+        lookup: publicLookup(Number(url.port) || 443),
+        headers: { accept: 'application/octet-stream', 'user-agent': 'Cerebro' },
+        timeout: IDLE_MS,
+      },
+      (res) => {
+        const status = res.statusCode ?? 0;
+        if (status >= 300 && status < 400 && res.headers.location) {
+          res.resume();
+          return resolve({ location: res.headers.location, bytes: 0, sha256: '' });
+        }
+        if (status !== 200) {
+          res.resume();
+          return reject(new Error(`the download answered ${status}`));
+        }
+        const hash = createHash('sha256');
+        const out = createWriteStream(file);
+        let bytes = 0;
+        res.on('data', (c: Buffer) => {
+          bytes += c.length;
+          if (bytes > maxBytes) req.destroy(new BlockedError('download too large'));
+          else hash.update(c);
+        });
+        res.on('error', reject);
+        out.on('error', reject);
+        out.on('finish', () => resolve({ bytes, sha256: hash.digest('hex') }));
+        res.pipe(out);
+      },
+    );
+    req.on('timeout', () => req.destroy(new BlockedError('the download stalled')));
+    req.on('error', reject);
+  });
+}
+
+/**
+ * A file the owner accepted to download (a program's release): https only, the same guard as a
+ * GET, written to `file` as it comes, up to `maxBytes`, with its SHA-256 to be checked.
+ */
+export async function netDownload(
+  raw: string,
+  allowed: (host: string) => boolean,
+  file: string,
+  maxBytes: number,
+): Promise<{ bytes: number; sha256: string }> {
+  let url = await checkUrl(raw);
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    if (url.protocol !== 'https:') throw new BlockedError(url.protocol);
+    if (!allowed(url.hostname)) throw new BlockedError(`not allowed: ${url.hostname}`);
+    const r = await saveOnce(url, file, maxBytes);
+    if (!r.location) return r;
     url = await checkUrl(new URL(r.location, url).href);
   }
   throw new BlockedError('too many redirects');

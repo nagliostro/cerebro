@@ -515,6 +515,8 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     if (req.method === 'GET' && what === 'contract') return json(200, contracts.contract(id));
     if (req.method === 'GET' && what === 'permissions') return json(200, contracts.permissions(id));
     if (req.method === 'GET' && what === 'network') return json(200, contracts.sites(id));
+    // A program it carries (Production): where it came from and what its test saw.
+    if (req.method === 'GET' && what === 'tool') return json(200, await builder.tool(id));
     // Its conversation with the owner: the questions and their answers (changes are plans).
     if (req.method === 'GET' && what === 'talk') return json(200, talks.list(id));
     if (req.method === 'POST') {
@@ -653,8 +655,7 @@ async function route(req: IncomingMessage, res: ServerResponse) {
       else if (action === 'rate') {
         if (!RATINGS.includes(b.rating as Rating)) throw new TuningError('invalid rating');
         builder.rate(id, b.rating as Rating);
-      }
-      else builder.cancel(id);
+      } else builder.cancel(id);
       return json(200, builder.get(id));
     }
   }

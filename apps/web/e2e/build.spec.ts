@@ -202,6 +202,65 @@ test('a vague copy asks which feature, as a choice, and goes on with it', async 
   await plan(page).getByRole('button', { name: 'Rejeitar' }).click();
 });
 
+test('a GitHub link is summed up and asks production or application', async ({ page }, info) => {
+  // GitHub's API without a key answers 60 times an hour: with no internet or none left, skipped.
+  const left = await fetch('https://api.github.com/rate_limit', {
+    signal: AbortSignal.timeout(5000),
+  })
+    .then(async (r) =>
+      r.ok ? ((await r.json()) as { rate: { remaining: number } }).rate.remaining : 0,
+    )
+    .catch(() => 0);
+  test.skip(left < 4, 'GitHub API not available');
+  await page.goto('/');
+  await ask(page, 'https://github.com/sindresorhus/slugify');
+  await expect(plan(page)).toContainText('Criar um neurônio com ele?', { timeout: 20_000 });
+  await expect(plan(page)).toContainText('sindresorhus/slugify');
+  await expect(plan(page)).toContainText('MIT');
+  await expect(plan(page)).toContainText('Its author says');
+  const options = plan(page).getByRole('radio');
+  await expect(options).toHaveCount(2);
+  await expect(options.first()).toContainText('Produção');
+  await expect(options.nth(1)).toContainText('Aplicação');
+  await info.attach('repo-question', { body: await page.screenshot(), contentType: 'image/png' });
+  await options.first().click();
+  await plan(page).getByRole('button', { name: 'Continuar' }).click();
+  // A library with no program in its releases cannot be installed: the plan says why.
+  await expect(
+    page.getByText(/não publicou uma versão oficial|não traz um programa pronto/),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Fechar' }).click();
+});
+
+test('a program chosen as production shows what will be installed, pinned', async ({
+  page,
+}, info) => {
+  const left = await fetch('https://api.github.com/rate_limit', {
+    signal: AbortSignal.timeout(5000),
+  })
+    .then(async (r) =>
+      r.ok ? ((await r.json()) as { rate: { remaining: number } }).rate.remaining : 0,
+    )
+    .catch(() => 0);
+  test.skip(left < 4, 'GitHub API not available');
+  await page.goto('/');
+  await ask(page, 'https://github.com/BurntSushi/ripgrep');
+  await expect(plan(page)).toContainText('Criar um neurônio com ele?', { timeout: 20_000 });
+  await plan(page).getByRole('radio').first().click();
+  await plan(page).getByRole('button', { name: 'Continuar' }).click();
+  await expect(plan(page)).toContainText('O que será instalado', { timeout: 20_000 });
+  await expect(plan(page)).toContainText(/ripgrep-[\d.]+-/);
+  await expect(plan(page)).toContainText('SHA-256 registrado pelo GitHub');
+  await expect(plan(page)).toContainText('Licença Unlicense: livre');
+  await expect(plan(page)).toContainText('Instalar não usa IA');
+  // Nothing in it to change: Install or Reject.
+  await expect(plan(page).getByRole('button', { name: 'Instalar' })).toBeVisible();
+  await expect(plan(page).getByRole('button', { name: 'Alterar' })).toHaveCount(0);
+  await info.attach('tool-plan', { body: await page.screenshot(), contentType: 'image/png' });
+  await plan(page).getByRole('button', { name: 'Rejeitar' }).click();
+  await expect(plan(page)).toHaveCount(0);
+});
+
 test('a crowded research spreads its steps: no label touches another; the plan wraps its text', async ({
   page,
 }, info) => {

@@ -73,6 +73,16 @@ export type MapInput = {
   sites: { host: string; why: string }[];
   libraries: string[];
   requests: { at: number; kind: string; request: string; ok: boolean }[];
+  /** A program it carries (Production), installed from a GitHub release. */
+  tool?: {
+    repo: string;
+    tag: string;
+    asset: { name: string };
+    sha256: string;
+    license: string;
+    program: string;
+    version: string | null;
+  } | null;
   notes: string;
   /** The most the notes may take, in characters. */
   maxNotes: number;
@@ -83,7 +93,16 @@ const day = (at: number) => new Date(at).toISOString().slice(0, 10);
 
 /** The map, as Markdown. */
 export function renderMap(m: MapInput): string {
-  const lines = [`# ${m.name} (${m.id})`, '', `Role: ${m.role}.`, '', '## Files'];
+  const lines = [`# ${m.name} (${m.id})`, '', `Role: ${m.role}.`];
+  if (m.tool)
+    lines.push(
+      '',
+      '## Program',
+      `- tool/${m.tool.program}${m.tool.version ? ` (${m.tool.version})` : ''}`,
+      `- from github.com/${m.tool.repo}, release ${m.tool.tag}, file ${m.tool.asset.name}`,
+      `- sha256 ${m.tool.sha256}, license ${m.tool.license}`,
+    );
+  lines.push('', '## Files');
   for (const f of m.files)
     lines.push(`- ${f.path} (${kb(f.bytes)})${f.outline ? `: ${clip(f.outline, 300)}` : ''}`);
   if (!m.files.length) lines.push('- (no application yet)');

@@ -37,6 +37,20 @@ export const en = {
   },
   appTitle: (name: string) => `${name} application`,
   appMissing: (name: string) => `The ${name} application has not been built yet.`,
+  tool: {
+    title: 'Installed program',
+    from: 'Source',
+    release: 'Release',
+    file: 'File',
+    program: 'Program',
+    answered: 'Answered',
+    license: 'License',
+    checksum: 'SHA-256',
+    installed: 'Installed on',
+    helpOnly: 'answered --help',
+    note: 'The Dominus and the other neurons do not call this program yet.',
+    remove: 'To uninstall, remove the neuron in Settings → Neurons.',
+  },
   network: {
     button: (name: string) => `Internet of ${name}`,
     buttonAsking: (name: string) => `Internet of ${name}: a site asks for access`,
@@ -143,6 +157,17 @@ export const en = {
       checked: (files: number, size: string) =>
         `Checked: ${files} ${files === 1 ? 'file' : 'files'}, ${size}`,
       waiting: (time: string) => `Waiting for the quota to reset at ${time}`,
+      repo: (name: string, done: boolean) =>
+        done ? `${name} read on GitHub · no AI` : `Reading ${name} on GitHub`,
+      summarizing: 'Summing up the repository',
+      summarized: (cost: string) => `Summary ready · ${cost}`,
+      release: (tag: string, asset: string) => `Release ${tag}: ${asset} · no AI`,
+      install: (asset: string, done: boolean) =>
+        done
+          ? `${asset} checked by its SHA-256 and installed`
+          : `Downloading and checking ${asset}`,
+      smoke: (version: string | null) =>
+        version ? `It works: ${version}` : 'It works: it answered --help',
       guide: (lessons: number) =>
         `Copying guide read${lessons ? ` · ${lessons} ${lessons === 1 ? 'lesson' : 'lessons'} of this install` : ''}`,
       browse: (host: string, pages: number, done: boolean) =>
@@ -227,6 +252,24 @@ export const en = {
       'none-ready': 'No AI ready. Connect an AI and try again.',
       'all-out-of-quota': 'Every AI is out of quota right now.',
       'bad-plan': 'The plan came in a form that could not be read.',
+      'repo-missing': 'This repository was not found on GitHub. It may be private or renamed.',
+      'github-busy': 'GitHub did not answer just now. Try again in a few minutes.',
+      'tool-not-free':
+        'Its license is not a free one, or GitHub did not recognize it: I do not install programs like that. It can still become an application.',
+      'tool-no-release':
+        'The author published no official release to download. Compiling the code would run their scripts, so I do not install it. It can still become an application.',
+      'tool-no-file':
+        'The latest release has no ready program for this computer. It can still become an application.',
+      'tool-too-large': 'The program is over 200 MB. Nothing was installed.',
+      'tool-no-checksum':
+        'The release has no SHA-256 to check the file against, so I do not install it.',
+      'tool-checksum-mismatch':
+        "The downloaded file does not match the release's SHA-256. Nothing was installed.",
+      'tool-bad-archive':
+        "The release's file had an invalid format or paths leading out of its folder. Nothing was installed.",
+      'tool-no-program': "I found no program inside the release's file. Nothing was installed.",
+      'tool-smoke-failed':
+        'The program answered neither --version nor --help on this computer. Nothing was installed.',
       'bad-build': 'The build did not leave a working application. Nothing was created.',
       stale: 'That plan had already changed. Nothing else was done.',
       attachment:
@@ -245,6 +288,42 @@ export const en = {
     chooseLead: (n: number) => `The app has ${n} ${n === 1 ? 'feature' : 'features'}`,
     chooseNote: 'Copying one comes out better and cheaper. The others can become neurons later.',
     researchThis: 'Research this one',
+    repoTitle: 'Make a neuron of it?',
+    repoLead: 'Of what kind',
+    repoKinds: {
+      production: {
+        label: 'Production',
+        detail: 'A tool the Dominus and the other neurons use, like the Navegador.',
+      },
+      application: {
+        label: 'Application',
+        detail: 'A screen for you to use, made from what it does.',
+      },
+    },
+    repoGo: 'Continue',
+    repoStars: (n: string) => `${n} stars`,
+    repoRelease: (tag: string) => `release ${tag}`,
+    repoNoRelease: 'no published release',
+    repoNotFree: 'License not free or not stated: using it may have conditions.',
+    repoArchived: 'Archived by its author: no longer updated.',
+    toolWhat: 'What will be installed',
+    toolRelease: (tag: string, date: string) => `Release ${tag}, published on ${date}`,
+    toolFile: (size: string, system: string) => `${size}, made for ${system}`,
+    toolLicense: (license: string) => `License ${license}: free`,
+    toolChecksum: (from: 'github' | 'author', hash: string) =>
+      `SHA-256 ${from === 'github' ? 'recorded by GitHub' : 'published by the author'}: ${hash}…`,
+    toolWhere: "It stays in the neuron's folder (tool/), apart from the rest of the Cerebro.",
+    toolHow: 'How it is installed',
+    toolSteps: [
+      "Downloads only this file, from the author's official release. Nothing is compiled.",
+      'Checks its SHA-256. If it does not match, it stops and installs nothing.',
+      'Runs the program once with --version, to see that it works on this computer.',
+      'To uninstall, remove the neuron in Settings: its whole folder goes away.',
+    ],
+    toolNoAi: 'Installing uses no AI: it costs nothing.',
+    install: 'Install',
+    installed: (name: string) => `${name} · installed`,
+    installCost: 'Installing used no AI',
     observed: 'What I observed',
     shot: 'The screen of the original',
     fields: 'fields',

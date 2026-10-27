@@ -378,9 +378,9 @@ describe('dominus core', () => {
     expect((await said('garden', g.id)).reply).toMatch(/^Garden answers \(balanced\)/);
     // How many of its records: by code, at once, no AI.
     const c = await talk('notes', 'How many pages do I have?');
-    expect((await call<Said[]>('GET', '/neurons/notes/talk')).find((x) => x.id === c.id)).toMatchObject(
-      { kind: 'noAi', status: 'done', reply: 'I have 1 record in pages.' },
-    );
+    expect(
+      (await call<Said[]>('GET', '/neurons/notes/talk')).find((x) => x.id === c.id),
+    ).toMatchObject({ kind: 'noAi', status: 'done', reply: 'I have 1 record in pages.' });
     // A change is a plan, as before.
     const p = await talk('garden', 'add a footer');
     expect(p.kind).toBe('plan');
@@ -513,6 +513,65 @@ describe('dominus core', () => {
     expect(kept.gaps).toEqual(['The rate changes every day']);
   }, 120_000);
 
+  it('a GitHub link is read from its API and summed up; the owner says what to make of it', async (ctx) => {
+    // The asks without a key are 60 an hour: with fewer left (or no internet), it waits for later.
+    const left = await fetch('https://api.github.com/rate_limit', {
+      signal: AbortSignal.timeout(5000),
+    }).then(
+      async (r) =>
+        r.ok ? ((await r.json()) as { rate: { remaining: number } }).rate.remaining : 0,
+      () => 0,
+    );
+    if (left < 12) ctx.skip();
+    const link = 'https://github.com/sindresorhus/slugify';
+    const tool = await ask(link);
+    const asked = await until(tool, 'questions', 'failed');
+    expect(asked.steps.map((s) => s.kind)).toEqual(['read', 'memory', 'repo', 'summary']);
+    expect(asked.plan).toMatchObject({
+      options: ['production', 'application'],
+      repo: { full: 'sindresorhus/slugify', license: 'MIT', free: true },
+    });
+    expect(asked.plan!.repo!.summary).toMatch(/^sindresorhus\/slugify is a project/);
+    await expect(call('POST', `/plans/${tool}/answer`, { text: 'maybe' })).rejects.toThrow(/400/);
+    // A library with no program in its releases cannot be a tool: the plan says why.
+    await call('POST', `/plans/${tool}/answer`, { text: 'Produção' });
+    const none = await plan(tool);
+    expect(none.status).toBe('failed');
+    expect(none.error).toMatch(/^tool-no-(release|file)$/);
+    // An application takes the copy's way, with the README attached instead of GitHub's pages.
+    const app = await ask(link);
+    await until(app, 'questions', 'failed');
+    await call('POST', `/plans/${app}/answer`, { text: 'Aplicação' });
+    const researching = await plan(app);
+    expect(researching.status).toBe('researching');
+    expect(researching.plan!.repo!.choice).toBe('application');
+    expect(existsSync(path.join(dir, 'research', app, 'attachments', 'README.md'))).toBe(true);
+    await call('POST', `/plans/${app}/cancel`);
+    await until(app, 'canceled', 'failed', 'ready');
+    // An application carries no program.
+    expect(await call('GET', '/neurons/navegador/tool')).toBeNull();
+    // A program with releases for every system: the plan pins one file and its checksum, and
+    // waits for the owner's Accept. There is nothing in it to change.
+    const rg = await ask('https://github.com/BurntSushi/ripgrep');
+    await until(rg, 'questions', 'failed');
+    await call('POST', `/plans/${rg}/answer`, { text: 'Produção' });
+    const ready = await plan(rg);
+    expect(ready).toMatchObject({
+      status: 'ready',
+      plan: { ready: true, role: 'craft', name: 'Ripgrep', repo: { choice: 'production' } },
+    });
+    expect(ready.plan!.tool).toMatchObject({ repo: 'BurntSushi/ripgrep', license: 'Unlicense' });
+    expect(ready.plan!.tool!.sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(ready.plan!.tool!.asset.url).toMatch(
+      /^https:\/\/github\.com\/BurntSushi\/ripgrep\/releases\/download\//,
+    );
+    expect(ready.steps.at(-1)).toMatchObject({ kind: 'release', tag: ready.plan!.tool!.tag });
+    await expect(call('POST', `/plans/${rg}/answer`, { text: 'use another one' })).rejects.toThrow(
+      /400/,
+    );
+    await call('POST', `/plans/${rg}/reject`);
+  }, 60_000);
+
   it('a free library the plan names is checked on the registry and carried inside', async (ctx) => {
     const online = await fetch('https://registry.npmjs.org/-/ping', {
       signal: AbortSignal.timeout(5000),
@@ -537,7 +596,10 @@ describe('dominus core', () => {
     expect(asked.plan).toMatchObject({
       ready: false,
       questions: ['Which feature should I copy?'],
-      options: ['Yield simulator', 'Comparator of investments side by side, with the yield of each one after taxes and fees'],
+      options: [
+        'Yield simulator',
+        'Comparator of investments side by side, with the yield of each one after taxes and fees',
+      ],
     });
     await call('POST', `/plans/${id}/answer`, { text: 'Yield simulator' });
     const ready = await until(id, 'ready', 'failed');

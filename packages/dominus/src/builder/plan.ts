@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { nowMs } from '../clock.ts';
 import type { Library } from '../research/libraries.ts';
 import type { Research } from '../research/record.ts';
+import type { ToolPlan } from '../tools/release.ts';
 import type { Exchange } from './prompts.ts';
 
 // A request to build (or adjust) a neuron, from the first word to the finished neuron. The state
@@ -49,16 +50,48 @@ export type Plan = {
   small?: boolean;
   /** Adjusting: the files to change and where in each, so the Builder opens only those. */
   files?: { path: string; where: string }[];
+  /** A GitHub repository: what it is, before the owner says what to make of it. */
+  repo?: RepoCard;
+  /** Production: the program to install from the repository's release, pinned. */
+  tool?: ToolPlan;
+};
+
+/** A repository as the owner sees it, with the summary and, once chosen, what to make of it. */
+export type RepoCard = {
+  full: string;
+  url: string;
+  description: string;
+  language: string | null;
+  license: string | null;
+  /** A permissive license GitHub recognized. */
+  free: boolean;
+  stars: number;
+  archived: boolean;
+  release: string | null;
+  /** Empty until the summary arrives. */
+  summary: string;
+  /** Production: a tool the Dominus and the neurons use; application: a screen for the owner. */
+  choice?: 'production' | 'application';
 };
 
 /** A real thing the Dominus did or is doing, shown as a point around it. Codes, not sentences. */
 export type Step =
   | { kind: 'read'; words: number }
   | { kind: 'memory'; neurons: number; similar: string | null }
+  /** A GitHub repository read from its public API (no AI). */
+  | { kind: 'repo'; name: string; done: boolean }
+  /** Its summary, by a cheap model. */
+  | { kind: 'summary'; done: boolean; costUsd?: number | null }
   | { kind: 'think'; done: boolean; costUsd?: number | null }
   | { kind: 'file'; path: string; done: boolean }
   | { kind: 'check'; files: number; bytes: number }
   | { kind: 'wait'; until: number }
+  /** A program's release, the file chosen for this computer and its checksum (no AI). */
+  | { kind: 'release'; tag: string; asset: string }
+  /** Installing it: downloaded, checked against its SHA-256 and unpacked. */
+  | { kind: 'install'; asset: string; done: boolean }
+  /** It ran once on this computer: what it answered to --version (or that --help worked). */
+  | { kind: 'smoke'; version: string | null }
   /** The guide to copying a feature was read, with this install's lessons. */
   | { kind: 'guide'; lessons: number }
   /** The Navegador on one site: how many pages of it so far. */

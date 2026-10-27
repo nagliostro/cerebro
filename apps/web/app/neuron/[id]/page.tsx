@@ -6,6 +6,7 @@ import { NetworkPanel, type Site, type Visited } from '@/components/network-pane
 import { NeuronFrame } from '@/components/neuron-frame';
 import { NeuronScreen } from '@/components/neuron-screen';
 import { PermissionsPanel } from '@/components/permissions-panel';
+import { ToolCard, type InstalledTool } from '@/components/tool-card';
 import { TopMenu } from '@/components/top-menu';
 import { UsesPanel, type Uses } from '@/components/uses-panel';
 import { pickLocale, t } from '@/lib/i18n';
@@ -49,16 +50,19 @@ export default async function NeuronPage({ params }: { params: Promise<{ id: str
 
   const neuron = await coreRequest<Neuron>('GET', `/neurons/${id}`).catch(() => null);
   if (!neuron) notFound();
-  const [contract, permissions, graph, version, plan, sites, visited, uses] = await Promise.all([
-    coreRequest<Contract>('GET', `/neurons/${id}/contract`),
-    coreRequest<Permission[]>('GET', `/neurons/${id}/permissions`),
-    coreRequest<{ neurons: Neuron[] }>('GET', '/graph'),
-    appVersion(id),
-    currentPlan(id),
-    coreRequest<Site[]>('GET', `/neurons/${id}/network`).catch(() => []),
-    researchSites(id),
-    coreRequest<Uses>('GET', `/neurons/${id}/uses`).catch(() => ({ total: 0, items: [] })),
-  ]);
+  const [contract, permissions, graph, version, plan, sites, visited, uses, tool] =
+    await Promise.all([
+      coreRequest<Contract>('GET', `/neurons/${id}/contract`),
+      coreRequest<Permission[]>('GET', `/neurons/${id}/permissions`),
+      coreRequest<{ neurons: Neuron[] }>('GET', '/graph'),
+      appVersion(id),
+      currentPlan(id),
+      coreRequest<Site[]>('GET', `/neurons/${id}/network`).catch(() => []),
+      researchSites(id),
+      coreRequest<Uses>('GET', `/neurons/${id}/uses`).catch(() => ({ total: 0, items: [] })),
+      // Production: the program it carries, if any.
+      coreRequest<InstalledTool | null>('GET', `/neurons/${id}/tool`).catch(() => null),
+    ]);
   // index.html by name: a folder URL ("/") would be redirected without the slash, and the
   // application's relative files would then lose the token.
   // The version tells the frame when the application really changed (see NeuronFrame).
@@ -105,6 +109,8 @@ export default async function NeuronPage({ params }: { params: Promise<{ id: str
       >
         {src ? (
           <NeuronFrame id={id} src={src} title={m.appTitle(neuron.name)} />
+        ) : tool ? (
+          <ToolCard tool={tool} m={m.tool} locale={locale} />
         ) : (
           <p className="mx-auto mt-16 w-[min(100%-32px,760px)] text-center">
             {m.appMissing(neuron.name)}
