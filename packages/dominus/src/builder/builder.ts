@@ -19,6 +19,7 @@ import { readGuide, researchDir } from '../research/guide.ts';
 import { checkLibrary, vendorLibrary, vendorPath, type Library } from '../research/libraries.ts';
 import { readResearch, writeResearch, type Research } from '../research/record.ts';
 import { DEPTH_PAGES, readSettings } from '../settings.ts';
+import type { Rating, Tuner } from '../tuning/tuner.ts';
 import { readLocale, requestLocale } from './language.ts';
 import type { CheckResult } from '../browser/checks.ts';
 import type { AskPayload } from '../worker.ts';
@@ -38,6 +39,7 @@ import {
   parsePlan,
   PlanError,
   type Estimate,
+  type Plan,
   type PlanRow,
   type Plans,
   type Step,
@@ -72,8 +74,6 @@ const NAVEGADOR_HUE = 235;
 const FIX_ROUNDS = 2;
 
 const DAY = 86_400_000;
-/** How much of an application's code the planner reads to adjust it (about 12k tokens). */
-const PLAN_CODE_LIMIT = 48_000;
 
 export type BuilderDeps = {
   dataDir: string;
@@ -81,6 +81,8 @@ export type BuilderDeps = {
   queue: Queue;
   graph: Graph;
   contracts: Contracts;
+  /** The tuning: the values each plan runs with, and what each set of values got. */
+  tuner: Tuner;
   /** Routes ("auto"), checks and enqueues an ask; throws when no AI can take it. */
   enqueueAsk: (
     payload: AskPayload,
@@ -136,6 +138,18 @@ export class Builder {
   }
 
   private changed(id: string) {
+    // The tuning hears every move of the plan (no AI): it scores the ones that ended.
+    const row = this.d.plans.get(id);
+    if (row) {
+      const verify = row.steps.findLast((s) => s.kind === 'verify');
+      this.d.tuner.observe({
+        id,
+        status: row.status,
+        neuron: row.neuron,
+        rounds: row.exchanges.length,
+        checks: verify && 'passed' in verify && verify.total ? verify.passed / verify.total : null,
+      });
+    }
     this.d.emit('plan.changed', { plan: id });
   }
 
@@ -175,6 +189,7 @@ export class Builder {
       target = input.target;
     }
     const id = this.d.plans.create(request, locale, target);
+    this.d.tuner.assign(id, target);
     // What the owner attached goes with the request's research folder.
     let attached: Attachment[] = [];
     if (input.attachments !== undefined) {
@@ -287,9 +302,56 @@ export class Builder {
     this.changed(id);
   }
 
+  /**
+   * The other neurons as the planner sees them. Adjusting one, only those it reads and those the
+   * owner named keep their data's shape; the rest go by name, which is enough to say "existing".
+   */
+  private others(row: PlanRow, neurons: NeuronSummary[]): NeuronSummary[] {
+    const rest = neurons.filter((n) => n.id !== row.target);
+    if (!row.target) return rest;
+    const reads = new Set(
+      this.d.graph
+        .view()
+        .links.filter((l) => l.reader === row.target)
+        .map((l) => l.target),
+    );
+    const said = ` ${normalize([row.request, ...row.exchanges.map((e) => e.text)].join(' '))} `;
+    return rest.map((n) =>
+      reads.has(n.id) || said.includes(normalize(n.name)) ? n : { ...n, collections: [] },
+    );
+  }
+
+  /**
+   * A small adjustment needs no second yes: it allows nothing new (no collection or field, link,
+   * site or library) and Undo takes it back. Checked here, by code, not on the planner's word.
+   */
+  private async quick(row: PlanRow, plan: Plan): Promise<boolean> {
+    if (!row.target || !plan.small || plan.links.length || plan.libraries.length) return false;
+    if (!existsSync(path.join(appDir(this.d.dataDir, row.target), 'index.html'))) return false;
+    const allowed = new Set(
+      this.d.contracts
+        .sites(row.target)
+        .filter((s) => s.status === 'allowed')
+        .map((s) => s.host),
+    );
+    if (plan.internet.some((x) => !allowed.has(x.host))) return false;
+    // Its data as it is (the records kept) and as its last plan said it (collections still empty).
+    const fields = new Map<string, Set<string>>();
+    const add = (name: string, names: string[]) =>
+      fields.set(name, new Set([...(fields.get(name) ?? []), ...names]));
+    for (const c of this.d.contracts.contract(row.target).collections)
+      add(c.name, c.fields.map((f) => f.name));
+    for (const c of this.d.plans.recentBuilt(row.target)[0]?.plan?.collections ?? [])
+      add(c.name, c.fields);
+    return plan.collections.every(
+      (c) => fields.has(c.name) && c.fields.every((f) => fields.get(c.name)!.has(f)),
+    );
+  }
+
   /** Asks for the plan (again, after answers or changes). */
   private async think(id: string) {
     const row = this.d.plans.get(id)!;
+    const knobs = this.d.tuner.knobs(id);
     const neurons = this.summaries();
     let target:
       (NeuronSummary & { files: string[]; code: { path: string; text: string }[] }) | undefined;
@@ -301,9 +363,10 @@ export class Builder {
         // The code goes with the request (text mode reads it cheaply), up to a limit.
         const code: { path: string; text: string }[] = [];
         let size = 0;
+        const limit = knobs.planCode;
         for (const path of files.filter((f) => /\.(html|css|js|json)$/.test(f))) {
           const text = await readText(dir, path).catch(() => '');
-          if (size + text.length > PLAN_CODE_LIMIT) break;
+          if (size + text.length > limit) break;
           size += text.length;
           code.push({ path, text });
         }
@@ -318,7 +381,9 @@ export class Builder {
       const job = await this.d.enqueueAsk(
         {
           provider: 'auto',
-          role: 'balanced',
+          role: knobs.thinkRole,
+          effort: knobs.thinkEffort,
+          tuned: true,
           mode: 'text',
           kind: 'think',
           system: PLAN_SYSTEM,
@@ -326,7 +391,7 @@ export class Builder {
             request: row.request,
             locale: row.locale,
             exchanges: row.exchanges,
-            neurons: neurons.filter((n) => n.id !== row.target),
+            neurons: this.others(row, neurons),
             target,
             research: row.research,
             attached: await attachmentLines(researchDir(this.d.dataDir, row.id)),
@@ -423,6 +488,7 @@ export class Builder {
     const target = row.target ? this.d.graph.neuron(row.target) : null;
     if (row.target && !target) throw new BuildError('unknown neuron');
     const color = target?.color ?? colorOf(this.d.graph.suggestHue());
+    const knobs = this.d.tuner.knobs(id);
     // Adjusting only when there is an application to change; otherwise its first one is built.
     const hasApp =
       !!target && !!(await listFiles(appDir(this.d.dataDir, target.id)).catch(() => [])).length;
@@ -446,7 +512,9 @@ export class Builder {
       const job = await this.d.enqueueAsk(
         {
           provider: 'auto',
-          role: 'balanced',
+          role: knobs.buildRole,
+          effort: knobs.buildEffort,
+          tuned: true,
           mode: 'agent',
           access: 'files',
           cwd: draft,
@@ -494,6 +562,13 @@ export class Builder {
       throw new BuildError((e as Error).message);
     }
     this.d.plans.update(id, { status: 'undone' });
+    this.changed(id);
+  }
+
+  /** The owner rated what was built or adjusted: bad, fair or good. Goes to the tuning. */
+  rate(id: string, rating: Rating) {
+    this.mustGet(id);
+    this.d.tuner.rate(id, rating);
     this.changed(id);
   }
 
@@ -601,7 +676,24 @@ export class Builder {
   ) {
     const row = this.d.plans.byJob(job);
     if (!row || !ACTIVE.includes(row.status)) return;
-    const result = data.result as { text?: string; costUsd?: number | null } | undefined;
+    const result = data.result as
+      | {
+          text?: string;
+          costUsd?: number | null;
+          inputTokens?: number;
+          cachedTokens?: number;
+          outputTokens?: number;
+        }
+      | undefined;
+    // What each job spent goes to the tuning. Tokens from the cache cost about a tenth: they
+    // count as a tenth, so a prompt that keeps the cache is not taken for an expensive one.
+    this.d.tuner.spent(
+      row.id,
+      (result?.inputTokens ?? 0) -
+        0.9 * (result?.cachedTokens ?? 0) +
+        (result?.outputTokens ?? 0),
+      result?.costUsd ?? 0,
+    );
     if (row.researchJob === job && row.status === 'researching')
       await this.researched(row, status, result, data.error);
     else if (row.thinkJob === job && row.status === 'thinking')
@@ -686,8 +778,12 @@ export class Builder {
     }
     const known = new Set(this.d.graph.view().neurons.map((n) => n.id));
     if (row.target) known.delete(row.target);
+    // Adjusting: the files it has, so the plan can only point at real ones.
+    const files = row.target
+      ? new Set(await listFiles(appDir(this.d.dataDir, row.target)).catch(() => []))
+      : undefined;
     try {
-      const plan = parsePlan(result?.text ?? '', known);
+      const plan = parsePlan(result?.text ?? '', known, files);
       // A plan for a neuron that is already in the Memória with no application yet (pointed
       // at, or with the same name) builds that one's first application, never a twin.
       if (!row.target && plan.ready && plan.creates.length) {
@@ -725,8 +821,9 @@ export class Builder {
         steps,
         addThinkCost: cost,
       });
-      // A translation the owner asked for by choosing a language: built at once, no second yes.
-      if (plan.ready && this.translating.delete(row.id))
+      // Built at once, no second yes: a translation the owner asked for by choosing a language,
+      // and a small adjustment (Undo takes it back).
+      if (plan.ready && (this.translating.delete(row.id) || (await this.quick(row, plan))))
         void this.accept(row.id).catch((e) =>
           this.d.plans.update(row.id, { status: 'failed', error: (e as Error).message }),
         );
@@ -819,6 +916,7 @@ export class Builder {
     }
     this.d.graph.removeNeuron(id);
     this.d.contracts.forget(id);
+    this.d.tuner.forget(id);
     await rm(path.join(this.d.dataDir, 'neurons', id), { recursive: true, force: true });
     this.d.emit('graph.changed', {});
   }
@@ -851,11 +949,14 @@ export class Builder {
     const rounds = steps.filter((s) => s.kind === 'verify').length;
     if ((r.failed.length || r.error) && rounds <= FIX_ROUNDS) {
       const target = row.target ? this.d.graph.neuron(row.target) : null;
+      const knobs = this.d.tuner.knobs(row.id);
       try {
         const job = await this.d.enqueueAsk(
           {
             provider: 'auto',
-            role: 'balanced',
+            role: knobs.buildRole,
+            effort: knobs.buildEffort,
+            tuned: true,
             mode: 'agent',
             access: 'files',
             cwd: draftDir(this.d.dataDir, row.id),
@@ -998,6 +1099,7 @@ export class Builder {
       ...row,
       elapsedMs: running && row.startedAt ? Math.max(0, nowMs() - row.startedAt) : null,
       expectMs,
+      rating: this.d.tuner.rating(row.id),
     };
   }
 

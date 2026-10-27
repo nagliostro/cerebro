@@ -30,6 +30,7 @@ import { dropOldUploads } from './research/attachments.ts';
 import { netGet } from './browser/fetch.ts';
 import { BlockedError } from './browser/guard.ts';
 import { readSettings, SettingsError, writeSettings } from './settings.ts';
+import { RATINGS, Tuner, TuningError, type Rating } from './tuning/tuner.ts';
 import { createVault } from './vault.ts';
 import { isAskPayload, jobTypes, type AskPayload } from './worker.ts';
 
@@ -70,6 +71,7 @@ const queue = new Queue(paths.db);
 const graph = new Graph(paths.db);
 const contracts = new Contracts(paths.db);
 const plans = new Plans(paths.db);
+const tuner = new Tuner(paths.db);
 const bus = new EventEmitter();
 bus.setMaxListeners(50);
 const lag = monitorEventLoopDelay({ resolution: 10 });
@@ -325,6 +327,13 @@ async function resolveAuto(payload: AskPayload): Promise<AskPayload> {
   if (payload.provider !== 'auto') return payload;
   const r = pickRoute({ mode: payload.mode, kind: payload.kind }, await candidates(payload.kind));
   if (!r.ok) throw new BadRequest(r.why);
+  // The tuning is trying a role: the connection is the Router's, the role stays.
+  if (payload.tuned)
+    return {
+      ...payload,
+      provider: r.provider,
+      route: [...r.reasons.filter((x) => x !== 'measured-role' && x !== 'default-role'), 'tuned'],
+    } as AskPayload;
   return { ...payload, provider: r.provider, role: r.role, route: r.reasons } as AskPayload;
 }
 
@@ -339,6 +348,7 @@ const builder = new Builder({
   queue,
   graph,
   contracts,
+  tuner,
   async enqueueAsk(payload, opts) {
     const job = validJob({
       type: 'ask',
@@ -614,10 +624,12 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     });
   if (req.method === 'GET' && url.pathname === '/plans/history')
     return json(200, builder.history());
+  // The tuning table: the values the Dominus runs with, each variant tried and how it went.
+  if (req.method === 'GET' && url.pathname === '/tuning') return json(200, tuner.table());
   if (req.method === 'GET' && url.pathname === '/plans/current')
     return json(200, builder.current(url.searchParams.get('target') || null));
   const planMatch = url.pathname.match(
-    /^\/plans\/([\w-]{1,40})(?:\/(answer|accept|reject|cancel|undo))?$/,
+    /^\/plans\/([\w-]{1,40})(?:\/(answer|accept|reject|cancel|undo|rate))?$/,
   );
   if (planMatch) {
     const [, id, action] = planMatch as unknown as [string, string, string | undefined];
@@ -631,6 +643,10 @@ async function route(req: IncomingMessage, res: ServerResponse) {
       else if (action === 'accept') await builder.accept(id, b);
       else if (action === 'reject') builder.reject(id);
       else if (action === 'undo') await builder.undo(id);
+      else if (action === 'rate') {
+        if (!RATINGS.includes(b.rating as Rating)) throw new TuningError('invalid rating');
+        builder.rate(id, b.rating as Rating);
+      }
       else builder.cancel(id);
       return json(200, builder.get(id));
     }
@@ -653,6 +669,7 @@ const server = createServer((req, res) => {
       e instanceof ContractError ||
       e instanceof BuildError ||
       e instanceof SettingsError ||
+      e instanceof TuningError ||
       e instanceof ConnectionError;
     if (!bad) console.error('dominus core:', e);
     if (!res.headersSent) res.writeHead(bad ? 400 : 500, { 'content-type': 'application/json' });
@@ -667,6 +684,7 @@ function shutdown() {
   graph.close();
   contracts.close();
   plans.close();
+  tuner.close();
   process.exit(0);
 }
 process.on('SIGINT', shutdown);

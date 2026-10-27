@@ -7,10 +7,10 @@ import { pickLocale, t } from '@/lib/i18n';
 import { fromCore, hasSession, unauthorized, validPlanId } from '@/lib/server/require-session';
 
 // What the owner does with a plan: answer its questions or ask for changes, accept (build),
-// reject, stop what is running, or take an adjustment back. An answer may come as a form with
+// reject, stop what is running, take an adjustment back, or rate what was built (the tuning). An answer may come as a form with
 // files (a drawing of the screen wanted): kept first in the data folder, as with a request.
 
-const ACTIONS = new Set(['answer', 'accept', 'reject', 'cancel', 'undo']);
+const ACTIONS = new Set(['answer', 'accept', 'reject', 'cancel', 'undo', 'rate']);
 
 export async function POST(
   request: Request,
@@ -47,11 +47,22 @@ export async function POST(
       text = t(pickLocale(request.headers.get('accept-language'))).build.attachedOnly;
     return fromCore(() => coreRequest('POST', `/plans/${id}/answer`, { text, attachments }));
   }
-  const b = (await request.json().catch(() => ({}))) as { text?: unknown; improvements?: unknown };
+  const b = (await request.json().catch(() => ({}))) as {
+    text?: unknown;
+    improvements?: unknown;
+    rating?: unknown;
+  };
   // Accepting a copy: the improvements the owner ticked, by their order in the research.
   const improvements = Array.isArray(b.improvements)
     ? b.improvements.filter((i) => Number.isInteger(i)).slice(0, 10)
     : [];
-  const body = action === 'answer' ? { text: b.text } : action === 'accept' ? { improvements } : {};
+  const body =
+    action === 'answer'
+      ? { text: b.text }
+      : action === 'accept'
+        ? { improvements }
+        : action === 'rate'
+          ? { rating: b.rating }
+          : {};
   return fromCore(() => coreRequest('POST', `/plans/${id}/${action}`, body));
 }

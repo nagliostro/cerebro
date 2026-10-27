@@ -199,6 +199,8 @@ export const en = {
     retry: 'Try again',
     close: 'Close',
     undo: 'Undo',
+    rate: 'How did it turn out?',
+    ratings: { bad: 'Bad', fair: 'Fair', good: 'Good' },
     undone: (name: string) => `${name} · adjustment undone, the previous version is back`,
     canceled: 'Canceled.',
     buildCanceled: 'Build canceled. Nothing was created.',

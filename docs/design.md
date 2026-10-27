@@ -18,6 +18,12 @@ para onde o texto vai. Nunca crie outro campo de conversa.
   anteriores.
 - Ações próprias do contexto (Voltar, Rejeitar) ficam fora da caixa, como botões de texto.
 
+## Nota do resultado
+
+Quando um neurônio fica pronto ou é ajustado, a legenda pergunta "Como ficou?" com três pílulas
+(Ruim, Razoável, Bom). A escolhida fica preenchida em branco; dá para trocar. A nota alimenta o
+afinamento do Dominus (`packages/dominus/src/tuning/tuner.ts`), sem gastar tokens.
+
 ## Neurônios (o kit)
 
 Toda aplicação de neurônio usa o kit em `apps/web/public/neuron-kit/` (`base.css`, `icons.js`,

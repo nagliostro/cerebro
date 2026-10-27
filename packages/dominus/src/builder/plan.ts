@@ -45,6 +45,10 @@ export type Plan = {
   libraries: Library[];
   /** The ones the planner named, before the check. */
   wanted?: { name: string; why: string }[];
+  /** Adjusting: a small change (texts, colors, order, a small fix), built without a second yes. */
+  small?: boolean;
+  /** Adjusting: the files to change and where in each, so the Builder opens only those. */
+  files?: { path: string; where: string }[];
 };
 
 /** A real thing the Dominus did or is doing, shown as a point around it. Codes, not sentences. */
@@ -343,7 +347,7 @@ export function extractJson(answer: string): unknown {
  * Checks a plan against what exists: links only to existing neurons, "existing" only a real one.
  * Throws PlanError when it cannot be used at all.
  */
-export function parsePlan(answer: string, known: Set<string>): Plan {
+export function parsePlan(answer: string, known: Set<string>, files?: Set<string>): Plan {
   const raw = extractJson(answer) as Record<string, unknown>;
   if (!raw || typeof raw !== 'object') throw new PlanError('not an object');
   const questions = texts(raw.questions, 3, 300);
@@ -402,6 +406,17 @@ export function parsePlan(answer: string, known: Set<string>): Plan {
       }))
       .filter((l) => l.name)
       .slice(0, 5),
+    // Only for an adjustment (the neuron's files given), and only files it really has.
+    small: !!files && raw.small === true,
+    files: files
+      ? (Array.isArray(raw.files) ? raw.files : [])
+          .map((f: { path?: unknown; where?: unknown }) => ({
+            path: text(f?.path, 200).replace(/^\.?\//, ''),
+            where: text(f?.where, 160),
+          }))
+          .filter((f) => files.has(f.path))
+          .slice(0, 6)
+      : [],
   };
   // "An existing neuron already does this" is an answer of its own: nothing new to create.
   if (ready && !plan.existing && (!plan.name || !plan.creates.length))

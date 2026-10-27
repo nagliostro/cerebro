@@ -285,6 +285,7 @@ export function claudeCode(opts: Options): AiProvider {
               (u.input_tokens ?? 0) +
               (u.cache_read_input_tokens ?? 0) +
               (u.cache_creation_input_tokens ?? 0),
+            cachedTokens: u.cache_read_input_tokens ?? 0,
             outputTokens: u.output_tokens ?? 0,
             costUsd: final.total_cost_usd ?? null,
             durationMs: final.duration_ms ?? 0,

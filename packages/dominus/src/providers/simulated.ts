@@ -50,6 +50,27 @@ function plan(prompt: string) {
       creates: [],
       existing,
     };
+  // [small] asks for a small adjustment: built at once, in the file it names.
+  if (adjusting && request.includes('[small]'))
+    return {
+      ready: true,
+      questions: [],
+      name,
+      role: 'life',
+      understood: request,
+      creates: [{ name: 'Title', what: 'a new title' }],
+      collections: [],
+      links: [...request.matchAll(/\[link:([a-z0-9-]+)\.([a-z0-9_-]+)\]/g)].map((m) => ({
+        neuron: m[1],
+        collection: m[2],
+        why: 'to read it',
+      })),
+      checks: ['The title changed'],
+      limits: [],
+      existing: null,
+      small: true,
+      files: [{ path: 'index.html', where: 'the <h1>' }],
+    };
   return {
     ready: true,
     questions: [],

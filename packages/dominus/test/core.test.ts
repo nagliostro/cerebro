@@ -319,6 +319,17 @@ describe('dominus core', () => {
     expect(ready.plan!.name).toBe('Garden');
     await call('POST', `/plans/${id}/accept`);
     expect((await until(id, 'built', 'failed')).neuron).toBe('garden');
+    // The owner rates it; the tuning keeps it, with what it spent, and no AI is asked.
+    await expect(call('POST', `/plans/${id}/rate`, { rating: 'great' })).rejects.toThrow(/400/);
+    expect(await call('POST', `/plans/${id}/rate`, { rating: 'good' })).toMatchObject({
+      rating: 'good',
+    });
+    const tuning = await call<{ variants: { status: string; results: number; good: number }[] }>(
+      'GET',
+      '/tuning',
+    );
+    expect(tuning.variants.filter((v) => v.status === 'champion')).toHaveLength(1);
+    expect(tuning.variants.reduce((s, v) => s + v.good, 0)).toBe(1);
     expect(existsSync(path.join(dir, 'neurons', 'garden', 'app.previous', 'index.html'))).toBe(
       true,
     );
@@ -331,6 +342,22 @@ describe('dominus core', () => {
     await expect(call('POST', `/plans/${id}/undo`)).rejects.toThrow(/400/);
     expect((await neurons()).filter((n) => n.name === 'Garden')).toHaveLength(1);
     expect(await call('GET', '/plans/current?target=garden')).toBeNull();
+  });
+
+  it('a small adjustment is built without a second yes; one that allows something new is not', async () => {
+    const id = await ask('[small] a clearer title', 'garden');
+    const built = await until(id, 'built', 'failed');
+    expect(built).toMatchObject({ status: 'built', neuron: 'garden', adjusting: true });
+    expect(built.plan).toMatchObject({
+      small: true,
+      files: [{ path: 'index.html', where: 'the <h1>' }],
+    });
+    // It may be undone like any other.
+    expect((await call<PlanRow>('POST', `/plans/${id}/undo`)).status).toBe('undone');
+    // A plan that would read another neuron waits for the owner, whatever it says of itself.
+    const other = await ask('[small] show the notes [link:notes.pages]', 'garden');
+    expect((await until(other, 'ready', 'building', 'built')).plan!.links).toHaveLength(1);
+    expect(await call('POST', `/plans/${other}/reject`)).toMatchObject({ status: 'rejected' });
   });
 
   it('choosing a language translates the built neurons written in the other one, with no second yes', async () => {

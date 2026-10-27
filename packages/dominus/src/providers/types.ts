@@ -77,6 +77,8 @@ export type AskResult = {
   /** The provider's actual model, for the record (learning which one solved what). */
   model: string;
   inputTokens: number;
+  /** Of the input, what came from the provider's cache (about a tenth of the price). */
+  cachedTokens?: number;
   outputTokens: number;
   /** null when unknown or free; for plans, the equivalent API price the provider reports. */
   costUsd: number | null;

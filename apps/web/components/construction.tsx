@@ -15,7 +15,14 @@ import { Memory, type MemoryProps } from './memory';
 import { PlanPanel } from './plan-panel';
 
 /** A plan as the core shows it: as stored, plus how long its job has run and should run. */
-export type PlanView = PlanRow & { elapsedMs: number | null; expectMs: number | null };
+export type PlanView = PlanRow & {
+  elapsedMs: number | null;
+  expectMs: number | null;
+  /** What the owner said of the result, for the tuning. */
+  rating?: Rating | null;
+};
+type Rating = 'bad' | 'fair' | 'good';
+const RATINGS: Rating[] = ['bad', 'fair', 'good'];
 type Other = { id: string; name: string; color: string };
 
 const RUNNING = new Set(['researching', 'thinking', 'building']);
@@ -330,7 +337,7 @@ export function Construction({
   // One action at a time: on a slow connection a second tap would arrive after the first.
   const acting = useRef(false);
   async function act(
-    action: 'answer' | 'accept' | 'reject' | 'undo',
+    action: 'answer' | 'accept' | 'reject' | 'undo' | 'rate',
     body: object = {},
     files: File[] = [],
   ) {
@@ -413,6 +420,21 @@ export function Construction({
             plan.buildCostUsd === null ? null : b.usd(plan.buildCostUsd),
           )}
         </p>
+        {/* The owner's word on the result tunes the Dominus (no AI): which values solve best. */}
+        <div role="group" aria-label={b.rate} className="flex items-center gap-1">
+          <span className="px-2">{b.rate}</span>
+          {RATINGS.map((r) => (
+            <button
+              key={r}
+              type="button"
+              aria-pressed={plan.rating === r}
+              onClick={() => void act('rate', { rating: r })}
+              className={`inline-flex h-11 cursor-pointer items-center rounded-full px-4 hover:text-white ${plan.rating === r ? 'bg-white text-[oklch(0.15_0.006_265)] hover:text-[oklch(0.15_0.006_265)]' : 'bg-white/8'}`}
+            >
+              {b.ratings[r]}
+            </button>
+          ))}
+        </div>
         <div className="flex gap-2">
           {/* In the adjustments window, Undo is on the request in its list. */}
           {target && plan.adjusting && !docked && (

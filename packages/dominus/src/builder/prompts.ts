@@ -49,6 +49,10 @@ Rules:
   Cerebro checks each one (permissive license, widely used, runs in a browser) and the neuron
   carries it inside; nothing paid, no online service.
 - Collection and field names: lowercase letters, digits, "-" or "_", starting with a letter.
+- Adjusting a neuron: in "files", the files to change and where in each (a function, a selector
+  or an element, by its name; never a line number), from its code given below. "small" is true
+  only when the change stays in those files and touches texts, labels, colors, spacing, order or
+  a small fix of behavior, with no new collection, field, link, site or library; else false.
 - Write every text for the owner in the language given, plain and short, no jargon.
 
 Answer with one JSON object and nothing else:
@@ -65,7 +69,9 @@ Answer with one JSON object and nothing else:
   "limits": string[],               // what it will not do yet, 0 to 3
   "existing": string | null,
   "libraries": [{ "name": string, "why": string }], // free npm libraries it should carry, 0 to 5
-  "internet": [{ "host": string, "why": string }]   // public sites it reads live data from, 0 to 3
+  "internet": [{ "host": string, "why": string }],  // public sites it reads live data from, 0 to 3
+  "small": boolean,                 // adjusting only: a small change (see the rules)
+  "files": [{ "path": string, "where": string }]    // adjusting only: what to change, 0 to 6
 }`;
 
 /**
@@ -222,8 +228,9 @@ export function planPrompt(input: {
   /** What the owner attached (attachmentLines), if anything. */
   attached?: string[];
 }): string {
+  // What changes least comes first (the neuron's code before the attachments and the words), so
+  // a new round of the same request finds the start of the prompt in the provider's cache.
   const lines = [`Language for the owner: ${languageOf(input.locale)}.`, ''];
-  if (input.attached?.length) lines.push(...input.attached, '');
   if (input.research?.feature)
     lines.push(
       'This is a copy of a feature, already researched. Plan exactly that feature, its rules,',
@@ -244,6 +251,7 @@ export function planPrompt(input: {
     );
     for (const f of input.target.code) lines.push(`--- ${f.path}`, f.text, '');
   }
+  if (input.attached?.length) lines.push(...input.attached, '');
   lines.push('Request:', input.request);
   for (const e of input.exchanges)
     lines.push(
@@ -380,6 +388,7 @@ export function buildPrompt(input: {
     checks: string[];
     limits: string[];
     internet?: { host: string; why: string }[];
+    files?: { path: string; where: string }[];
   };
   request: string;
   /** Adjusting: the current files are already in the folder. */
@@ -425,6 +434,13 @@ export function buildPrompt(input: {
     input.adjusting
       ? `The folder already has the current application of "${p.name}". Change it as the plan says, keeping what works and the data's shape.`
       : `Build the neuron "${p.name}". The folder is empty.`,
+    ...(input.adjusting && p.files?.length
+      ? [
+          'Where to change (start here; open another file only if the change needs it, and do not',
+          'read the whole folder):',
+          ...p.files.map((f) => `- ${f.path}: ${f.where}`),
+        ]
+      : []),
     '',
     `The owner asked: ${input.request}`,
     `Understood: ${p.understood}`,

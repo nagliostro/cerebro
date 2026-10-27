@@ -199,6 +199,8 @@ export const ptBR: Messages = {
     retry: 'Tentar de novo',
     close: 'Fechar',
     undo: 'Desfazer',
+    rate: 'Como ficou?',
+    ratings: { bad: 'Ruim', fair: 'Razoável', good: 'Bom' },
     undone: (name: string) => `${name} · ajuste desfeito, a versão anterior voltou`,
     canceled: 'Cancelado.',
     buildCanceled: 'Construção cancelada. Nada foi criado.',

@@ -108,6 +108,31 @@ describe('the plan from the AI', () => {
     expect(b).toContain('--cb-cor: oklch(0.78 0.11 30)');
     expect(b).toContain('- agenda eventos.list: contas');
   });
+
+  it('an adjustment says where to change, only in files the neuron has; small only then', () => {
+    const answer = JSON.stringify({
+      ...full,
+      small: true,
+      files: [
+        { path: './app.js', where: 'render()' },
+        { path: '../core.ts', where: 'x' },
+        { path: 'ghost.js', where: 'y' },
+      ],
+    });
+    const adjust = parsePlan(answer, known, new Set(['index.html', 'app.js']));
+    expect(adjust).toMatchObject({ small: true, files: [{ path: 'app.js', where: 'render()' }] });
+    // A new neuron has no files yet: nothing is small, nothing to point at.
+    expect(parsePlan(answer, known)).toMatchObject({ small: false, files: [] });
+    const b = buildPrompt({
+      locale: 'en',
+      color: 'white',
+      request: 'r',
+      adjusting: true,
+      plan: { ...adjust, name: 'F' },
+    });
+    expect(b).toContain('Where to change');
+    expect(b).toContain('- app.js: render()');
+  });
 });
 
 describe('file tools for an API agent', () => {

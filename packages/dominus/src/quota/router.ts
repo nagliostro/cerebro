@@ -37,7 +37,9 @@ export type Reason =
   | 'api'
   | 'plan-above-pace'
   | 'measured-role'
-  | 'default-role';
+  | 'default-role'
+  /** The tuning chose the role, to learn whether it solves with fewer tokens. */
+  | 'tuned';
 
 export type Route =
   | { ok: true; provider: string; role: ModelRole; mode: AskMode; reasons: Reason[] }

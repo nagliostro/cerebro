@@ -30,6 +30,8 @@ export type AskPayload = {
   kind?: string;
   /** Why the Router chose this connection and role, when it did. */
   route?: string[];
+  /** The role comes from the tuning (it is trying it out): the Router keeps it. */
+  tuned?: boolean;
 };
 
 export function isAskPayload(p: unknown): p is AskPayload {
