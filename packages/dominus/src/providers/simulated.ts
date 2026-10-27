@@ -1,5 +1,6 @@
 import { nowMs } from '../clock.ts';
 import { BUILD_TAG, PLAN_TAG, RESEARCH_TAG } from '../builder/prompts.ts';
+import { ANSWER_TAG } from '../builder/talk.ts';
 import { writeText } from './file-tools.ts';
 import type { AiProvider, AskEvent, AskRequest } from './types.ts';
 
@@ -275,6 +276,20 @@ export function simulated(): AiProvider {
         text = await research(req, (e) => onEvent?.(e));
       else if (req.system?.startsWith(BUILD_TAG) && req.cwd)
         text = await build(req, (e) => onEvent?.(e));
+      else if (req.system?.startsWith(ANSWER_TAG)) {
+        await sleep(STEP_MS, req.signal);
+        // What it answers says what it read; [change] is a change in a question's clothes, and
+        // [garbled] an answer that does not parse when the cheap model answers.
+        const question = req.prompt.match(/The owner asks:\n([^\n]*)/)?.[1] ?? '';
+        const name = req.prompt.match(/You are "([^"]+)"/)?.[1] ?? '';
+        text =
+          question.includes('[garbled]') && req.role === 'cheap'
+            ? 'not json'
+            : JSON.stringify({
+                answer: `${name} answers (${req.role}): ${question}`,
+                change: question.includes('[change]'),
+              });
+      }
       else text = `echo(${req.role}, ${req.mode}): ${req.prompt}`;
       onEvent?.({ type: 'text', text });
       return {

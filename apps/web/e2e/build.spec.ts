@@ -105,11 +105,11 @@ test('a neuron without an application gets its first one from its own screen', a
   await page.goto('/neuron/pesquisa');
   await expect(page.getByText('A aplicação de Pesquisa ainda não foi construída.')).toBeVisible();
   // The pencil opens its adjustments, as in the Cerebro before; no box at the foot.
-  await expect(page.getByRole('textbox', { name: 'Peça um ajuste a Pesquisa' })).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'Fale com Pesquisa' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Ajustar Pesquisa' }).click();
   const adjustments = page.getByRole('region', { name: 'Conversa com Pesquisa' });
   await expect(adjustments).toContainText('Oi, eu sou Pesquisa.');
-  await ask(page, 'uma lista de fontes para consultar', 'Peça um ajuste a Pesquisa');
+  await ask(page, 'uma lista de fontes para consultar', 'Fale com Pesquisa');
   await expect(plan(page)).toContainText('Pesquisa');
   await plan(page).getByRole('button', { name: 'Ajustar' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Pesquisa · ajustado' })).toBeVisible({
@@ -120,7 +120,14 @@ test('a neuron without an application gets its first one from its own screen', a
   // A first application has nothing to go back to; an adjustment of it does.
   await expect(page.getByRole('button', { name: 'Desfazer' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Fechar', exact: true }).click();
-  await ask(page, 'com uma nota em cada fonte', 'Peça um ajuste a Pesquisa');
+  // A question is answered in the conversation, with no plan.
+  await ask(page, 'De onde vêm as fontes?', 'Fale com Pesquisa');
+  await expect(adjustments).toContainText('Pesquisa answers (cheap): De onde vêm as fontes?');
+  await expect(adjustments).toContainText('resposta direta');
+  await expect(plan(page)).toHaveCount(0);
+  // A change is a plan, inside the conversation, decided there.
+  await ask(page, 'com uma nota em cada fonte', 'Fale com Pesquisa');
+  await expect(adjustments.getByRole('region', { name: 'Plano' })).toBeVisible();
   await plan(page).getByRole('button', { name: 'Ajustar' }).click();
   await expect(asked).toHaveText('com uma nota em cada fonte', { timeout: 20_000 });
   // Both requests are in its conversation, the newest last, with Undo on it.

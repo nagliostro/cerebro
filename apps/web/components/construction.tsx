@@ -180,6 +180,8 @@ export function Construction({
   const router = useRouter();
   const docked = !!target && !!panel;
   const [undone, setUndone] = useState(0);
+  // The conversation moved (an answer came): the window reads it again.
+  const [talked, setTalked] = useState(0);
   const [plan, setPlan] = useState<PlanView | null>(initial);
   const [secs, setSecs] = useState(0);
   const [problem, setProblem] = useState<string | null>(null);
@@ -238,9 +240,15 @@ export function Construction({
       events.onopen = resync;
       events.onmessage = (e) => {
         try {
-          const d = JSON.parse(e.data) as { type: string; plan: string | null };
+          const d = JSON.parse(e.data) as {
+            type: string;
+            plan: string | null;
+            neuron?: string;
+          };
           if (d.type === 'graph.changed') router.refresh();
-          else if (d.type === 'plan.changed' && d.plan === shownRef.current) void load(d.plan);
+          else if (d.type === 'talk.changed') {
+            if (d.neuron === targetId) setTalked((n) => n + 1);
+          } else if (d.type === 'plan.changed' && d.plan === shownRef.current) void load(d.plan);
           else if (d.type === 'plan.changed') void adopt();
         } catch {
           // Not an event.
@@ -258,13 +266,14 @@ export function Construction({
       document.removeEventListener('visibilitychange', onVisibility);
       events?.close();
     };
-  }, [load, adopt, router]);
+  }, [load, adopt, router, targetId]);
 
-  // On a neuron's screen, work going on opens the adjustments window: that is where it shows.
+  // On a neuron's screen, work going on (or a plan to decide) opens its conversation: that is
+  // where it shows.
   const setPanel = panel?.setOpen;
   useEffect(() => {
-    if (docked && running) setPanel?.(true);
-  }, [docked, running, setPanel]);
+    if (docked && (running || open)) setPanel?.(true);
+  }, [docked, running, open, setPanel]);
 
   // While it runs, count the seconds.
   useEffect(() => {
@@ -314,6 +323,27 @@ export function Construction({
         id = data.id;
       } else id = (await call<{ id: string }>('/api/plans', { request, target: on })).id;
       await load(id);
+      return true;
+    } catch (e) {
+      setProblem(problemText((e as Error).message, b));
+      return false;
+    }
+  }
+
+  /**
+   * Said to the neuron in its conversation: the core answers a question, or makes a change a plan
+   * (then followed as any plan). Pictures always go to a plan: they are what to make.
+   */
+  async function say(text: string, files: File[] = []) {
+    if (!target || files.length) return start(text, files);
+    setProblem(null);
+    try {
+      const r = await call<{ kind: 'plan' | 'answer'; id: string }>(
+        `/api/neurons/${target.id}/talk`,
+        { text },
+      );
+      if (r.kind === 'plan') await load(r.id);
+      else setTalked((n) => n + 1);
       return true;
     } catch (e) {
       setProblem(problemText((e as Error).message, b));
@@ -527,52 +557,69 @@ export function Construction({
         />
       )}
 
-      {docked && panel.open && !(plan && open && plan.plan) && (
+      {docked && panel.open && (
         <AdjustPanel
           neuron={target.id}
           name={target.name}
           color={target.color ?? 'white'}
           locale={locale}
-          live={caption}
+          // A plan to decide is the neuron's word, in the thread; otherwise how the work goes.
+          live={plan && open && plan.plan ? planPanel(true) : caption}
           liveId={plan?.id}
-          refresh={`${plan?.id}-${plan?.status}-${undone}`}
+          refresh={`${plan?.id}-${plan?.status}-${undone}-${talked}`}
           onUndo={(id) => void undoPlan(id)}
           onClose={() => panel.setOpen(false)}
-          box={(label) => (
+          box={
+            // The same box: with a plan open, what is written answers it or changes it.
             <DominusBox
               docked
-              label={label}
-              sendLabel={b.send}
+              label={
+                plan && open
+                  ? plan.status === 'questions'
+                    ? b.answers
+                    : b.changes
+                  : m.adjust.talk(target.name)
+              }
+              sendLabel={plan && open ? (plan.status === 'questions' ? b.reply : b.redo) : b.send}
               stopLabel={b.stop}
               attachLabel={b.attach}
               removeLabel={b.removeAttachment}
               tooMany={b.attachLimits}
               busy={running}
-              onSend={start}
+              onSend={(text, files) =>
+                plan && open ? act('answer', { text }, files) : say(text, files)
+              }
               onStop={() => void stop()}
             />
-          )}
+          }
         />
       )}
 
-      {plan && open && plan.plan && (
-        <PlanPanel
-          plan={plan}
-          others={others}
-          m={b}
-          windows={m.window}
-          locale={locale}
-          onAnswer={(text, files) => act('answer', { text }, files)}
-          onAccept={(improvements) => void act('accept', { improvements })}
-          onReject={() => void act('reject')}
-          onAdjust={async (neuron) => {
-            // The same request, as an adjustment of that neuron, on its own screen.
-            const request = plan.request;
-            await act('reject');
-            if (await start(request, [], neuron)) router.push(`/neuron/${neuron}`);
-          }}
-        />
-      )}
+      {!docked && plan && open && plan.plan && planPanel(false)}
     </>
   );
+
+  /** The plan: its own window over the Memória; in a neuron's conversation, inside the thread. */
+  function planPanel(embedded: boolean) {
+    if (!plan?.plan) return null;
+    return (
+      <PlanPanel
+        embedded={embedded}
+        plan={plan}
+        others={others}
+        m={b}
+        windows={m.window}
+        locale={locale}
+        onAnswer={(text, files) => act('answer', { text }, files)}
+        onAccept={(improvements) => void act('accept', { improvements })}
+        onReject={() => void act('reject')}
+        onAdjust={async (neuron) => {
+          // The same request, as an adjustment of that neuron, on its own screen.
+          const request = plan.request;
+          await act('reject');
+          if (await start(request, [], neuron)) router.push(`/neuron/${neuron}`);
+        }}
+      />
+    );
+  }
 }

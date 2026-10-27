@@ -22,6 +22,16 @@ import { DEPTH_PAGES, readSettings } from '../settings.ts';
 import type { Rating, Tuner } from '../tuning/tuner.ts';
 import { readLocale, requestLocale } from './language.ts';
 import { chooseCode, isOwnCode, MAP, NOTES, outline, renderMap, type MapInput } from './map.ts';
+import {
+  ANSWER_SYSTEM,
+  answerPrompt,
+  countAnswer,
+  isQuestion,
+  MAX_TALK,
+  parseAnswer,
+  type TalkRow,
+  type Talks,
+} from './talk.ts';
 import type { CheckResult } from '../browser/checks.ts';
 import type { AskPayload } from '../worker.ts';
 import {
@@ -66,6 +76,7 @@ import {
 const BUILD_MAX_MS = 45 * 60_000;
 const THINK_MAX_MS = 5 * 60_000;
 const RESEARCH_MAX_MS = 20 * 60_000;
+const ANSWER_MAX_MS = 2 * 60_000;
 const CHECK_MAX_MS = 3 * 60_000;
 /** The Navegador, a craft neuron that comes with the Cerebro: born with the first research. */
 export const NAVEGADOR = 'navegador';
@@ -84,6 +95,8 @@ export type BuilderDeps = {
   contracts: Contracts;
   /** The tuning: the values each plan runs with, and what each set of values got. */
   tuner: Tuner;
+  /** The conversations with the neurons: questions and their answers. */
+  talks: Talks;
   /** Routes ("auto"), checks and enqueues an ask; throws when no AI can take it. */
   enqueueAsk: (
     payload: AskPayload,
@@ -401,6 +414,114 @@ export class Builder {
     await writeFile(path.join(this.d.dataDir, 'neurons', id, MAP), map).catch(() => undefined);
   }
 
+  /**
+   * What the owner and a neuron said lately, oldest first, one line each: the questions and their
+   * answers, and the changes asked with how they ended. For the planner and for the answers.
+   */
+  private conversation(neuron: string, limit: number, except?: string): string[] {
+    const clip = (t: string) => (t.length > 300 ? `${t.slice(0, 299)}…` : t);
+    const said: { at: number; lines: string[] }[] = [];
+    for (const t of this.d.talks.list(neuron, limit))
+      if (t.status === 'done' && t.id !== except)
+        said.push({ at: t.at, lines: [`Owner: ${clip(t.text)}`, `You: ${clip(t.reply ?? '')}`] });
+    for (const p of this.d.plans.recent(200))
+      if (
+        (p.target === neuron || p.neuron === neuron) &&
+        p.id !== except &&
+        !ACTIVE.includes(p.status)
+      )
+        said.push({
+          at: p.createdAt,
+          lines: [
+            `Owner asked to change: ${clip(p.request)}`,
+            `(${p.status}${p.plan?.understood ? `: ${clip(p.plan.understood)}` : ''})`,
+          ],
+        });
+    return said
+      .sort((a, b) => a.at - b.at)
+      .slice(-limit)
+      .flatMap((x) => x.lines);
+  }
+
+  /**
+   * The owner said something to a neuron. A change becomes a plan, as before. A question is
+   * answered: by code when it asks how many of its records (no AI), otherwise by a cheap model
+   * that reads its map, the code that matters and what was said lately.
+   */
+  async talk(
+    neuron: string,
+    input: Record<string, unknown>,
+  ): Promise<{ kind: 'plan' | 'answer'; id: string }> {
+    if (!this.d.graph.neuron(neuron)) throw new BuildError('unknown neuron');
+    const text = typeof input.text === 'string' ? input.text.trim() : '';
+    if (!text || text.length > MAX_TALK) throw new BuildError('invalid text');
+    const locale = requestLocale(text) ?? readLocale(input.locale);
+    if (!isQuestion(text))
+      return { kind: 'plan', id: await this.start({ request: text, target: neuron, locale }) };
+    const counted = countAnswer(text, this.d.contracts.contract(neuron).collections, locale);
+    const row = this.d.talks.create({
+      neuron,
+      text,
+      locale,
+      kind: counted ? 'noAi' : 'direct',
+      reply: counted,
+      status: counted ? 'done' : 'thinking',
+    });
+    if (!counted) await this.ask(row, 'cheap');
+    this.d.emit('talk.changed', { neuron });
+    return { kind: 'answer', id: row.id };
+  }
+
+  /** Asks a model for the answer; a step up (balanced) when the cheap one's did not parse. */
+  private async ask(row: TalkRow, role: 'cheap' | 'balanced') {
+    const knobs = this.d.tuner.knobs('');
+    const { map, notes, code } = await this.mapOf(row.neuron, knobs.mapTokens * 4);
+    try {
+      const job = await this.d.enqueueAsk(
+        {
+          provider: 'auto',
+          role,
+          effort: 'low',
+          tuned: true,
+          mode: 'text',
+          kind: 'answer',
+          system: ANSWER_SYSTEM,
+          prompt: answerPrompt({
+            name: this.d.graph.neuron(row.neuron)!.name,
+            locale: row.locale,
+            map,
+            ...chooseCode(code, row.text, notes, knobs.planCode),
+            conversation: this.conversation(row.neuron, knobs.recentTurns, row.id),
+            question: row.text,
+          }),
+        },
+        { maxMs: ANSWER_MAX_MS, maxAttempts: 2 },
+      );
+      this.d.talks.update(row.id, { job, tries: row.tries + 1 });
+    } catch {
+      this.d.talks.update(row.id, { status: 'failed' });
+    }
+  }
+
+  /** The model answered: the answer joins the conversation, or it was a change after all. */
+  private async answered(
+    row: TalkRow,
+    status: 'done' | 'failed' | 'canceled',
+    result: { text?: string; costUsd?: number | null } | undefined,
+  ) {
+    this.d.talks.update(row.id, { addCost: result?.costUsd ?? 0 });
+    const a = status === 'done' ? parseAnswer(result?.text ?? '') : null;
+    if (!a) {
+      if (status !== 'canceled' && row.tries < 2) await this.ask(row, 'balanced');
+      else this.d.talks.update(row.id, { status: 'failed' });
+    } else if (a.change) {
+      // Not a question: a plan, as if it had been asked as a change.
+      this.d.talks.remove(row.id);
+      await this.start({ request: row.text, target: row.neuron, locale: row.locale });
+    } else this.d.talks.update(row.id, { reply: a.answer, status: 'done' });
+    this.d.emit('talk.changed', { neuron: row.neuron });
+  }
+
   /** Asks for the plan (again, after answers or changes). */
   private async think(id: string) {
     const row = this.d.plans.get(id)!;
@@ -437,6 +558,9 @@ export class Builder {
             exchanges: row.exchanges,
             neurons: this.others(row, neurons),
             target,
+            conversation: row.target
+              ? this.conversation(row.target, knobs.recentTurns, row.id)
+              : [],
             research: row.research,
             attached: await attachmentLines(researchDir(this.d.dataDir, row.id)),
           }),
@@ -722,6 +846,12 @@ export class Builder {
     status: 'done' | 'failed' | 'canceled',
     data: { result?: unknown; error?: string },
   ) {
+    const said = this.d.talks.byJob(job);
+    if (said) {
+      if (said.status === 'thinking')
+        await this.answered(said, status, data.result as { text?: string; costUsd?: number });
+      return;
+    }
     const row = this.d.plans.byJob(job);
     if (!row || !ACTIVE.includes(row.status)) return;
     const result = data.result as
@@ -965,6 +1095,7 @@ export class Builder {
     this.d.graph.removeNeuron(id);
     this.d.contracts.forget(id);
     this.d.tuner.forget(id);
+    this.d.talks.forget(id);
     await rm(path.join(this.d.dataDir, 'neurons', id), { recursive: true, force: true });
     this.d.emit('graph.changed', {});
   }

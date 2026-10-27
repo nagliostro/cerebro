@@ -78,8 +78,8 @@ export const KNOBS = {
     max: 12,
     initial: 6,
     factor: 1.34,
-    live: false,
-    about: 'turns of the conversation kept word for word',
+    live: true,
+    about: 'turns of the conversation the planner and the answers read',
   },
   readsReader: {
     kind: 'amount',

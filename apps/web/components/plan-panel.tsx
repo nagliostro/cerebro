@@ -155,6 +155,7 @@ export function PlanPanel({
   onAccept,
   onReject,
   onAdjust,
+  embedded = false,
 }: {
   plan: PlanView;
   others: Other[];
@@ -167,6 +168,11 @@ export function PlanPanel({
   onReject: () => void;
   /** The plan says an existing neuron already does this: adjust that one instead. */
   onAdjust: (neuron: string) => void;
+  /**
+   * In a neuron's conversation: inside the thread, under what the owner said (so not said again),
+   * and answered or changed in the conversation's own box (so none of its own).
+   */
+  embedded?: boolean;
 }) {
   const [changing, setChanging] = useState(false);
   const [choice, setChoice] = useState(0);
@@ -198,14 +204,25 @@ export function PlanPanel({
 
   return (
     <section
-      data-avoid
+      data-avoid={embedded ? undefined : true}
       aria-label={m.plan}
-      className="fixed inset-x-2 bottom-2 z-50 flex max-h-[78dvh] animate-[cb-pop_0.3s_cubic-bezier(0.2,0,0,1)] flex-col rounded-[10px] bg-[oklch(0.13_0.006_265/0.55)] shadow-[inset_0_0_0_1px_var(--cb-outline)] backdrop-blur-md min-[820px]:left-1/2 min-[820px]:w-[40rem] min-[820px]:-translate-x-1/2 xl:top-6 xl:right-6 xl:bottom-6 xl:left-auto xl:max-h-none xl:w-96 xl:translate-x-0"
+      className={
+        embedded
+          ? 'grid w-full min-w-0 rounded-[10px] shadow-[inset_0_0_0_1px_var(--cb-outline)]'
+          : `fixed inset-x-2 bottom-2 z-50 flex max-h-[78dvh] animate-[cb-pop_0.3s_cubic-bezier(0.2,0,0,1)] flex-col rounded-[10px] bg-[oklch(0.13_0.006_265/0.55)] shadow-[inset_0_0_0_1px_var(--cb-outline)] backdrop-blur-md min-[820px]:left-1/2 min-[820px]:w-[40rem] min-[820px]:-translate-x-1/2 xl:top-6 xl:right-6 xl:bottom-6 xl:left-auto xl:max-h-none xl:w-96 xl:translate-x-0`
+      }
     >
       {/* One column that never grows past the panel: long words (links, names, values) break
           inside it, and only the vertical scroll is left. */}
-      <div className="grid min-w-0 flex-1 [scrollbar-width:thin] [scrollbar-color:oklch(1_0_0/16%)_transparent] grid-cols-[minmax(0,1fr)] content-start gap-[18px] overflow-x-hidden overflow-y-auto px-5 pt-5 pb-2 [overflow-wrap:anywhere] [mask:linear-gradient(#000_calc(100%-28px),transparent)]">
-        <div className="flex items-center gap-2.5">
+      <div
+        className={
+          embedded
+            ? 'grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-[18px] px-4 pt-4 pb-1 [overflow-wrap:anywhere]'
+            : `grid min-w-0 flex-1 [scrollbar-width:thin] [scrollbar-color:oklch(1_0_0/16%)_transparent] grid-cols-[minmax(0,1fr)] content-start gap-[18px] overflow-x-hidden overflow-y-auto px-5 pt-5 pb-2 [overflow-wrap:anywhere] [mask:linear-gradient(#000_calc(100%-28px),transparent)]`
+        }
+      >
+        {/* In the conversation the neuron is already named: only questions get a title. */}
+        <div className={`flex items-center gap-2.5 ${embedded && !asking ? 'hidden' : ''}`}>
           {asking ? (
             <span
               aria-hidden
@@ -223,10 +240,14 @@ export function PlanPanel({
           </h2>
           {!asking && <span>· {m.role[p.role]}</span>}
         </div>
-        <p>“{plan.request}”</p>
-        {plan.exchanges.map((e, i) => (
-          <p key={i}>{m.said(e.text)}</p>
-        ))}
+        {!embedded && (
+          <>
+            <p>“{plan.request}”</p>
+            {plan.exchanges.map((e, i) => (
+              <p key={i}>{m.said(e.text)}</p>
+            ))}
+          </>
+        )}
 
         {options.length ? (
           <Section title={m.chooseLead(options.length)}>
@@ -506,7 +527,9 @@ export function PlanPanel({
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 px-5 pt-3 pb-5">
+      <div
+        className={`flex flex-wrap items-center gap-2 ${embedded ? 'px-4 pt-3 pb-4' : 'px-5 pt-3 pb-5'}`}
+      >
         {options.length ? (
           <>
             <button
@@ -522,6 +545,11 @@ export function PlanPanel({
               {m.reject}
             </button>
           </>
+        ) : embedded && asking ? (
+          // Answered in the conversation's box, below.
+          <button type="button" onClick={onReject} className={PLAIN}>
+            {m.reject}
+          </button>
         ) : asking || changing ? (
           <>
             {/* The same box as the Dominus's: only what it is about changes. */}
@@ -582,9 +610,12 @@ export function PlanPanel({
             >
               {adjusting ? m.acceptAdjust : m.accept}
             </button>
-            <button type="button" onClick={() => setChanging(true)} className={SOFT}>
-              {m.change}
-            </button>
+            {/* In a conversation, a change is written in its box: no button for it. */}
+            {!embedded && (
+              <button type="button" onClick={() => setChanging(true)} className={SOFT}>
+                {m.change}
+              </button>
+            )}
             <span className="flex-1" />
             <button type="button" onClick={onReject} className={PLAIN}>
               {m.reject}

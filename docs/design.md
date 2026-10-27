@@ -45,9 +45,13 @@ de chat (ChatGPT, Claude, Gemini):
   ("Feito. …", "Desfiz esse ajuste…"). Abaixo, discreto: data, como respondeu ("resposta
   direta", "sem IA") e o custo na cor de custo.
 - Vazio, o neurônio se apresenta. O trabalho em andamento é a última fala dele (passos, custo,
-  "Como ficou?", Desfazer).
-- A caixa no pé é a mesma `DominusBox`: "Peça um ajuste a X" até haver resposta direta (fase 4);
-  depois, "Fale com X". `?demo` mostra uma conversa de exemplo com os tipos de resposta.
+  "Como ficou?", Desfazer). Enquanto ele pensa numa resposta, "Pensando…" pulsa no lugar dela.
+- Uma pergunta recebe resposta direta, sem plano. Uma mudança vira um plano **dentro do fio**,
+  num cartão de contorno fino, sem repetir o pedido nem o nome do neurônio; Ajustar e Rejeitar
+  ficam no cartão.
+- A caixa no pé é a mesma `DominusBox`: "Fale com X"; com um plano aberto, ela responde às
+  perguntas dele ("Respostas") ou muda o plano ("O que mudar no plano"). `?demo` mostra uma
+  conversa de exemplo com os tipos de resposta.
 
 ## Nota do resultado
 

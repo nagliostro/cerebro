@@ -234,6 +234,8 @@ export function planPrompt(input: {
   research?: Research | null;
   /** What the owner attached (attachmentLines), if anything. */
   attached?: string[];
+  /** Adjusting: what the owner and the neuron said lately (questions, answers, changes). */
+  conversation?: string[];
 }): string {
   // What changes least comes first (the neuron's code before the attachments and the words), so
   // a new round of the same request finds the start of the prompt in the provider's cache.
@@ -264,6 +266,8 @@ export function planPrompt(input: {
       lines.push(`--- ${f.path}${f.only ? ` (only: ${f.only.join(', ')})` : ''}`, f.text, '');
   }
   if (input.attached?.length) lines.push(...input.attached, '');
+  if (input.conversation?.length)
+    lines.push('Lately, between the owner and this neuron:', ...input.conversation, '');
   lines.push('Request:', input.request);
   for (const e of input.exchanges)
     lines.push(

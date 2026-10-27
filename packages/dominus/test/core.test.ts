@@ -356,6 +356,50 @@ describe('dominus core', () => {
     expect(await call('GET', '/plans/current?target=garden')).toBeNull();
   });
 
+  it('talking to a neuron: a question is answered, a count by code, a change becomes a plan', async () => {
+    type Said = { id: string; text: string; kind: string; reply: string | null; status: string };
+    const talk = (neuron: string, text: string) =>
+      call<{ kind: string; id: string }>('POST', `/neurons/${neuron}/talk`, { text, locale: 'en' });
+    const said = (neuron: string, id: string) =>
+      waitFor(async () => {
+        const t = (await call<Said[]>('GET', `/neurons/${neuron}/talk`)).find((x) => x.id === id);
+        return t?.status !== 'thinking' && t;
+      });
+    // A question: the cheap model answers, with its map and its code.
+    const q = await talk('garden', 'Where does the list come from?');
+    expect(q.kind).toBe('answer');
+    expect(await said('garden', q.id)).toMatchObject({
+      kind: 'direct',
+      status: 'done',
+      reply: 'Garden answers (cheap): Where does the list come from?',
+    });
+    // An answer that does not parse is asked again, a step up.
+    const g = await talk('garden', 'what does it show? [garbled]');
+    expect((await said('garden', g.id)).reply).toMatch(/^Garden answers \(balanced\)/);
+    // How many of its records: by code, at once, no AI.
+    const c = await talk('notes', 'How many pages do I have?');
+    expect((await call<Said[]>('GET', '/neurons/notes/talk')).find((x) => x.id === c.id)).toMatchObject(
+      { kind: 'noAi', status: 'done', reply: 'I have 1 record in pages.' },
+    );
+    // A change is a plan, as before.
+    const p = await talk('garden', 'add a footer');
+    expect(p.kind).toBe('plan');
+    expect(await until(p.id, 'ready')).toMatchObject({ target: 'garden', request: 'add a footer' });
+    await call('POST', `/plans/${p.id}/reject`);
+    // A change in a question's clothes: the model says so, and it becomes a plan.
+    const x = await talk('garden', 'what about a footer? [change]');
+    const opened = await waitFor(() =>
+      call<PlanRow | null>('GET', '/plans/current?target=garden').then((r) => r ?? undefined),
+    );
+    expect(opened.request).toBe('what about a footer? [change]');
+    expect((await call<Said[]>('GET', '/neurons/garden/talk')).some((t) => t.id === x.id)).toBe(
+      false,
+    );
+    await until(opened.id, 'ready');
+    await call('POST', `/plans/${opened.id}/reject`);
+    await expect(talk('ghost', 'hi?')).rejects.toThrow(/404/);
+  });
+
   it('a small adjustment is built without a second yes; one that allows something new is not', async () => {
     const id = await ask('[small] a clearer title', 'garden');
     const built = await until(id, 'built', 'failed');

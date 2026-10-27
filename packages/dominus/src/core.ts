@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Builder, BuildError } from './builder/builder.ts';
 import { Plans } from './builder/plan.ts';
+import { Talks } from './builder/talk.ts';
 import { clockState, nowMs, setOffset, syncClock } from './clock.ts';
 import { Contracts, ContractError } from './contract.ts';
 import { Graph, GraphError } from './graph.ts';
@@ -72,6 +73,7 @@ const graph = new Graph(paths.db);
 const contracts = new Contracts(paths.db);
 const plans = new Plans(paths.db);
 const tuner = new Tuner(paths.db);
+const talks = new Talks(paths.db);
 const bus = new EventEmitter();
 bus.setMaxListeners(50);
 const lag = monitorEventLoopDelay({ resolution: 10 });
@@ -349,6 +351,7 @@ const builder = new Builder({
   graph,
   contracts,
   tuner,
+  talks,
   async enqueueAsk(payload, opts) {
     const job = validJob({
       type: 'ask',
@@ -512,6 +515,8 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     if (req.method === 'GET' && what === 'contract') return json(200, contracts.contract(id));
     if (req.method === 'GET' && what === 'permissions') return json(200, contracts.permissions(id));
     if (req.method === 'GET' && what === 'network') return json(200, contracts.sites(id));
+    // Its conversation with the owner: the questions and their answers (changes are plans).
+    if (req.method === 'GET' && what === 'talk') return json(200, talks.list(id));
     if (req.method === 'POST') {
       const b = (await readBody(req)) as Record<string, unknown>;
       // The internet of its application: only GETs to the sites the owner allowed for it. One it
@@ -548,6 +553,8 @@ async function route(req: IncomingMessage, res: ServerResponse) {
         else throw new BadRequest('allow must be true or false');
         return json(200, contracts.sites(id));
       }
+      // The owner says something to it: a question is answered, a change becomes a plan.
+      if (what === 'talk') return json(201, await builder.talk(id, b));
       // Settings → Neurons: rename, change its role, or remove it for good.
       if (what === 'edit') {
         graph.updateNeuron(id, { name: b.name, role: b.role });
@@ -685,6 +692,7 @@ function shutdown() {
   contracts.close();
   plans.close();
   tuner.close();
+  talks.close();
   process.exit(0);
 }
 process.on('SIGINT', shutdown);

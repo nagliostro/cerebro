@@ -79,6 +79,8 @@ export const ptBR: Messages = {
       canceled: 'Parei no meio. Nada mudou.',
       failed: 'Não consegui fazer isso. Nada mudou.',
     },
+    thinking: 'Pensando…',
+    noAnswer: 'Não consegui responder agora. Pergunte de novo daqui a pouco.',
     direct: 'resposta direta',
     noAi: 'sem IA',
     demo: 'Conversa de exemplo, para aprovar o visual',

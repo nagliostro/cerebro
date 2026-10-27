@@ -78,6 +78,8 @@ export const en = {
       canceled: 'I stopped halfway. Nothing changed.',
       failed: 'I could not do that. Nothing changed.',
     },
+    thinking: 'Thinking…',
+    noAnswer: 'I could not answer now. Ask again in a moment.',
     direct: 'direct answer',
     noAi: 'no AI',
     demo: 'Sample conversation, to approve the look',

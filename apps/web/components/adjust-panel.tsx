@@ -21,6 +21,17 @@ type Entry = {
   plan?: { understood: string } | null;
 };
 
+/** A question and its answer, as the core keeps them. */
+type Said = {
+  id: string;
+  at: number;
+  text: string;
+  kind: 'direct' | 'noAi';
+  reply: string | null;
+  status: 'thinking' | 'done' | 'failed';
+  costUsd: number;
+};
+
 /** One turn of the conversation: what the owner said, and what the neuron answered. */
 type Turn = {
   id: string;
@@ -30,6 +41,8 @@ type Turn = {
   costUsd: number;
   /** How it was answered: by a plan built, directly, or by code alone. */
   how: 'plan' | 'direct' | 'noAi';
+  /** Still thinking: its reply is a soft "thinking". */
+  pending?: boolean;
   undo: boolean;
 };
 
@@ -62,8 +75,8 @@ export function AdjustPanel({
   live: React.ReactNode;
   /** The request it is about: its turn takes the live word as its answer, never both. */
   liveId?: string;
-  /** The Dominus box, docked here, with the name inside its field. */
-  box: (label: string) => React.ReactNode;
+  /** The Dominus box, docked here. */
+  box: React.ReactNode;
   /** Changes when a plan moves on, so the list is read again. */
   refresh: string;
   onUndo: (plan: string) => void;
@@ -72,6 +85,7 @@ export function AdjustPanel({
   const all = t(locale);
   const m = all.adjust;
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [said, setSaid] = useState<Said[]>([]);
   // The sample conversation, by the address (?demo); none while the server draws the page.
   const demo = useSyncExternalStore(
     noChange,
@@ -85,6 +99,9 @@ export function AdjustPanel({
     void fetch(`/api/plans/history?neuron=${neuron}`)
       .then((r) => (r.ok ? r.json() : []))
       .then((list: Entry[]) => !gone && setEntries(list));
+    void fetch(`/api/neurons/${neuron}/talk`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: Said[]) => !gone && setSaid(list));
     return () => {
       gone = true;
     };
@@ -118,15 +135,28 @@ export function AdjustPanel({
         how: d.how === 'adjusted' ? 'plan' : (d.how as Turn['how']),
         undo: false,
       }))
-    : [...entries].reverse().map((e) => ({
-        id: e.id,
-        said: [e.request, ...(e.exchanges ?? []).map((x) => x.text)],
-        reply: live && e.id === liveId ? null : replyOf(e),
-        at: e.createdAt,
-        costUsd: e.thinkCostUsd + (e.buildCostUsd ?? 0),
-        how: 'plan',
-        undo: undoable?.id === e.id && e.status === 'built' && e.adjusting,
-      }));
+    : [
+        ...entries.map((e): Turn => ({
+          id: e.id,
+          said: [e.request, ...(e.exchanges ?? []).map((x) => x.text)],
+          reply: live && e.id === liveId ? null : replyOf(e),
+          at: e.createdAt,
+          costUsd: e.thinkCostUsd + (e.buildCostUsd ?? 0),
+          how: 'plan',
+          undo: undoable?.id === e.id && e.status === 'built' && e.adjusting,
+        })),
+        ...said.map((s): Turn => ({
+          id: s.id,
+          said: [s.text],
+          reply:
+            s.status === 'thinking' ? m.thinking : s.status === 'failed' ? m.noAnswer : s.reply,
+          at: s.at,
+          costUsd: s.costUsd,
+          how: s.kind,
+          undo: false,
+          pending: s.status === 'thinking',
+        })),
+      ].sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
 
   // The newest word in view, as in any conversation.
   useEffect(() => {
@@ -194,21 +224,25 @@ export function AdjustPanel({
                 <div className="flex gap-2.5">
                   {dot}
                   <div className="grid min-w-0 gap-1">
-                    <p className="text-(--cb-highlight)">{turn.reply}</p>
-                    <p>
-                      {[
-                        turn.at ? when(turn.at) : null,
-                        turn.how === 'direct' ? m.direct : turn.how === 'noAi' ? m.noAi : null,
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                      {turn.costUsd > 0 && (
-                        <span className="text-(--cb-cost)">
-                          {turn.at || turn.how !== 'plan' ? ' · ' : ''}
-                          {all.build.usd(turn.costUsd)}
-                        </span>
-                      )}
+                    <p className={turn.pending ? 'animate-pulse' : 'text-(--cb-highlight)'}>
+                      {turn.reply}
                     </p>
+                    {!turn.pending && (
+                      <p>
+                        {[
+                          turn.at ? when(turn.at) : null,
+                          turn.how === 'direct' ? m.direct : turn.how === 'noAi' ? m.noAi : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                        {turn.costUsd > 0 && (
+                          <span className="text-(--cb-cost)">
+                            {turn.at || turn.how !== 'plan' ? ' · ' : ''}
+                            {all.build.usd(turn.costUsd)}
+                          </span>
+                        )}
+                      </p>
+                    )}
                     {turn.undo && (
                       <button
                         type="button"
@@ -231,8 +265,7 @@ export function AdjustPanel({
           </div>
         )}
       </div>
-      {/* "Talk to" once a question gets a direct answer (phase 4); until then, a change. */}
-      <div className="px-3 pt-1 pb-3">{box(demo ? m.talk(name) : all.build.askAdjust(name))}</div>
+      <div className="px-3 pt-1 pb-3">{box}</div>
     </section>
   );
 }

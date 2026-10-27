@@ -3,11 +3,12 @@ import { coreEvents } from '@cerebro/dominus/client';
 import { hasSession, unauthorized } from '@/lib/server/require-session';
 
 // The screens follow a plan live: the core's events, only those a screen needs (a plan changed,
-// the graph changed), and only their ids; the screen then reads what it needs.
+// the graph changed, a neuron's conversation moved), and only their ids; the screen then reads
+// what it needs.
 
 export const dynamic = 'force-dynamic';
 
-const PASS = new Set(['plan.changed', 'graph.changed']);
+const PASS = new Set(['plan.changed', 'graph.changed', 'talk.changed']);
 
 export async function GET(request: Request) {
   if (!(await hasSession())) return unauthorized();
@@ -26,7 +27,9 @@ export async function GET(request: Request) {
       send(': open\n\n');
       coreEvents((e) => {
         if (PASS.has(e.type))
-          send(`data: ${JSON.stringify({ type: e.type, plan: e.plan ?? null })}\n\n`);
+          send(
+            `data: ${JSON.stringify({ type: e.type, plan: e.plan ?? null, neuron: e.neuron ?? null })}\n\n`,
+          );
       }, stop.signal)
         .catch(() => undefined)
         .finally(() => {
