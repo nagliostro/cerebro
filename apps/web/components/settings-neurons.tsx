@@ -78,15 +78,17 @@ export function NeuronsPanel({ initial, locale }: { initial: NeuronRow[]; locale
 
   return (
     <>
-      <p role="status" className="mt-4 min-h-[1lh]">
-        {note}
-      </p>
+      {note && (
+        <p role="status" className="mb-4">
+          {note}
+        </p>
+      )}
       {rows.length === 0 ? (
-        <p className="mt-6">{m.none}</p>
+        <p>{m.none}</p>
       ) : (
-        <ul className="mt-2 divide-y divide-white/6">
+        <ul className="divide-y divide-white/6">
           {rows.map((n) => (
-            <li key={n.id} className="grid gap-3 py-4">
+            <li key={n.id} className="grid gap-3 py-4 first:pt-0">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <span
                   aria-hidden

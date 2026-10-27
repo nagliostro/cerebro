@@ -6,7 +6,6 @@ import {
   type Preset,
   type ProviderHealth,
 } from '@/components/settings-connections';
-import { Header } from '@/components/settings-ui';
 import { pickLocale, t } from '@/lib/i18n';
 import { coreRequest } from '@/lib/server/core';
 
@@ -23,7 +22,6 @@ export default async function Connections() {
   ]);
   return (
     <>
-      <Header title={m.sections.connections} text={m.connections.lead} />
       <ConnectionsPanel
         locale={locale}
         providers={providers.filter((p) => p.id !== 'simulated')}

@@ -26,6 +26,7 @@ import { buildEstimate, guard } from './quota/guard.ts';
 import { route as pickRoute, type Candidate, type RouteRequest } from './quota/router.ts';
 import { windowStatus } from './quota/status.ts';
 import { Queue, toJob, type JobRow, type NewJob } from './queue.ts';
+import { dropOldUploads } from './research/attachments.ts';
 import { netGet } from './browser/fetch.ts';
 import { BlockedError } from './browser/guard.ts';
 import { readSettings, SettingsError, writeSettings } from './settings.ts';
@@ -329,6 +330,9 @@ async function resolveAuto(payload: AskPayload): Promise<AskPayload> {
 
 class BadRequest extends Error {}
 
+// Attachments of a request that never started are not kept.
+void dropOldUploads(paths.dir).catch(() => undefined);
+
 const builder = new Builder({
   dataDir: paths.dir,
   plans,
@@ -494,6 +498,7 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     const neuron = graph.neuron(id);
     if (!neuron) return json(404, { error: 'unknown neuron' });
     if (req.method === 'GET' && !what) return json(200, neuron);
+    if (req.method === 'GET' && what === 'uses') return json(200, graph.uses(id));
     if (req.method === 'GET' && what === 'contract') return json(200, contracts.contract(id));
     if (req.method === 'GET' && what === 'permissions') return json(200, contracts.permissions(id));
     if (req.method === 'GET' && what === 'network') return json(200, contracts.sites(id));

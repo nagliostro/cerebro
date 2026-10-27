@@ -31,7 +31,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
             { href: '/settings/devices', name: s.devices },
           ]}
         />
-        <main className="min-w-0 flex-1">{children}</main>
+        <main className="min-w-0 flex-1 md:pt-2.5">{children}</main>
       </div>
     </div>
   );

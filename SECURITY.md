@@ -22,10 +22,14 @@ Please do not open a public issue. Use GitHub's private vulnerability reporting
   sessions.
 - Requests whose Host is not this computer are refused (DNS rebinding), and so is any request
   that changes something without an Origin of the Cerebro itself (CSRF). The only other name let
-  in is your own Tailscale address, and only after you turn remote access on, on the computer.
-- Remote access goes through your own Tailscale network (Serve, HTTPS, only your devices; never
-  Funnel, never the open internet). A phone enters with a one-time pairing code (5 minutes) shown
-  on the computer; every device is listed with when it was last seen and can be revoked at once.
+  in is the address of your own domain, and only after you turn remote access on, on the computer.
+- Remote access goes through a Cloudflare Tunnel that cloudflared opens from the computer (no
+  port is opened on the router; HTTPS to Cloudflare, which ends the encryption there and passes
+  the request on through the tunnel). The tunnel sends only your address to the Cerebro. The
+  address can be reached from the internet, but it shows only the locked screen: a phone enters
+  with a one-time pairing code (5 minutes) shown on the computer, and every device is listed with
+  when it was last seen and can be revoked at once. The tunnel's secret and settings stay in the
+  data folder; it is turned on and off only on the computer.
 - The installed app (PWA) keeps only an offline page on the device; your data always stays on the
   computer.
 - Your data stays in your computer's data folder, never in the program folder or in git.

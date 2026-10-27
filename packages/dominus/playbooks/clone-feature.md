@@ -35,6 +35,28 @@ risk) and only decompile programs to understand them and rebuild in the owner's 
   logic runs on the server (the usual case for calculations), this and step 4 are the only way
   in, with or without decompiling.
 - Never sign in, pay or submit anything on the owner's behalf without asking.
+- Record the screen with `set_screen`: every element the owner sees while using the feature, top
+  to bottom (the sentence that says the result, the main number, each field and choice, buttons,
+  tabs, charts, the source and time of the data). The clone keeps them all, in that order,
+  stacked for a narrow page. When the page blocks automated access (a CAPTCHA), a screenshot the
+  owner sent counts as observing it; never try to get around the block.
+
+## 2b. Where the data comes from
+
+When the feature shows live data (exchange rates, prices, indexes, the weather), the calculation
+is the easy part; the data is the feature. Find out:
+
+- **Who gives it to the original** (the page says it, or its help, or its network calls), and
+  whether that provider is paid.
+- **A free public source with no key** that gives the same data, and its history when the
+  original shows a chart (e.g. central bank reference rates for currencies). Prefer official or
+  open-source providers.
+- Record it with `add_source`, with an example link exactly as the neuron will ask. The Cerebro
+  opens it to prove it answers; if it does not, try another.
+
+The neuron reads it live through the Cerebro (the owner sees the site in the globe of its screen).
+Never plan that the owner types live data by hand. Say how fresh the free source is (once a day
+is not every minute) and, when it is less than the original, record that as a gap.
 
 ## 3. Read what reaches the device (when there is something to read)
 
@@ -56,7 +78,11 @@ correct itself without the owner.
   terms, the edges between brackets (tax ranges, tiers, dates such as month and year ends,
   weekends and holidays when days matter).
 - Keep each case as `{ input, output, source }`; source is "observed", or the link of a manual
-  or forum example.
+  or forum example. Live data the original used (the rate of that moment) is an input of the
+  case, so the case stays true tomorrow.
+- An output is the value as shown (a number, a date, a word), never a note about it: notes are
+  rules or findings. The Builder must compute every output, so a note in an output would only be
+  copied, not computed.
 - Aim for at least 10 cases for a calculation and 5 for a flow. More where the rules branch.
 
 ## 5. Research everything written about the tool
@@ -89,6 +115,8 @@ Never plan to write by hand what a known library already does well.
 Besides the usual parts of a plan, a clone plan shows:
 
 - what was observed (screens, fields, calls), with the main screenshot;
+- the screen as the neuron will stack it (a sketch of its elements, in order);
+- where the live data comes from: the original's provider, and the free source the neuron reads;
 - how many cases the answer key has, and the formula or rule found for each output;
 - the rules found, each with its source;
 - improvements suggested by the complaints, marked as optional;

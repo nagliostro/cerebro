@@ -49,6 +49,24 @@ describe('graph', () => {
     expect(() => graph.recordConversation(a, 'ghost')).toThrow('unknown neuron');
   });
 
+  it('keeps what the Dominus did with a neuron, newest first, and forgets it with the neuron', () => {
+    const a = graph.addNeuron({ name: 'Finanças' });
+    graph.recordUse(a, { kind: 'built', request: 'organize my spending' }, 1000);
+    graph.recordUse(a, { kind: 'adjusted', request: 'add a chart', ok: false }, 2000);
+    const { total, items } = graph.uses(a);
+    expect(total).toBe(2);
+    expect(items.map((u) => [u.kind, u.ok])).toEqual([
+      ['adjusted', false],
+      ['built', true],
+    ]);
+    expect(graph.uses(a, 1).items).toHaveLength(1);
+    expect(() => graph.recordUse('ghost', { kind: 'built', request: 'x' })).toThrow(
+      'unknown neuron',
+    );
+    graph.removeNeuron(a);
+    expect(graph.uses(a)).toEqual({ total: 0, items: [] });
+  });
+
   it('keeps links: one neuron reads another', () => {
     const a = graph.addNeuron({ name: 'Finanças' });
     const b = graph.addNeuron({ name: 'Agenda' });

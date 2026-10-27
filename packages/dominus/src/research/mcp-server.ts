@@ -73,7 +73,11 @@ async function handle(msg: Message) {
     const r = await tools.run(name, args);
     const content: object[] = [{ type: 'text', text: r.output }];
     if (r.image)
-      content.push({ type: 'image', data: r.image.toString('base64'), mimeType: 'image/png' });
+      content.push({
+        type: 'image',
+        data: r.image.toString('base64'),
+        mimeType: r.mime ?? 'image/png',
+      });
     return reply(id, { content, isError: r.output.startsWith('error:') });
   }
   fail(id, -32601, `unknown method ${method}`);

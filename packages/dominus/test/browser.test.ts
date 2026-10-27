@@ -183,6 +183,58 @@ describe('research tools on a real browser', () => {
     expect(r.sites).toEqual([{ host: '127.0.0.1', pages: 1 }]);
   });
 
+  it('keeps outputs as values, the screen in order, and only a source that answers', async () => {
+    const note = await tools.run('add_case', {
+      input: { value: '2000' },
+      output: { net: 'an example with a spread of two percent, only to show the difference' },
+      source: 'observed',
+    });
+    expect(note.output).toMatch(/reads like a note/);
+    const screen = await tools.run('set_screen', {
+      items: [
+        { kind: 'headline', text: '1 US dollar equals' },
+        { kind: 'number', text: '5.45 Brazilian real' },
+        { kind: 'pair', text: '1', detail: 'US dollar, a list of currencies' },
+        { kind: 'swap', text: 'Swap' },
+        { kind: 'chart', text: 'The rate over time', detail: '1M, 6M, 1Y, 5Y, Max' },
+        { kind: 'banner', text: 'Unknown kinds become text' },
+      ],
+    });
+    expect(screen.output).toBe('saved');
+    // Only https, and only one that answers through the guard (the loopback never does).
+    expect(
+      (
+        await tools.run('add_source', {
+          data: 'rates',
+          original: 'a paid provider',
+          example: `${base}/api/rate`,
+          updates: 'daily',
+        })
+      ).output,
+    ).toMatch(/https/);
+    expect(
+      (
+        await tools.run('add_source', {
+          data: 'rates',
+          original: 'a paid provider',
+          example: 'https://127.0.0.1:1/rates',
+          updates: 'daily',
+        })
+      ).output,
+    ).toMatch(/did not answer/);
+    const r = await readResearch(dir);
+    expect(r.cases).toHaveLength(1);
+    expect(r.screen.map((x) => x.kind)).toEqual([
+      'headline',
+      'number',
+      'pair',
+      'swap',
+      'chart',
+      'text',
+    ]);
+    expect(r.sources).toEqual([]);
+  });
+
   it('an application reads only allowed sites, and a redirect cannot lead elsewhere', async () => {
     const { netGet } = await import('../src/browser/fetch.ts');
     const allowed = (h: string) => h === '127.0.0.1';

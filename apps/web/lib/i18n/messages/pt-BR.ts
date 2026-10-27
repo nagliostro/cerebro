@@ -1,0 +1,451 @@
+// Português (Brasil). Must have exactly the keys of English (the compiler checks).
+
+import type { Messages } from './en';
+
+export const ptBR: Messages = {
+  launch: (link: string) => `Cerebro: para entrar, abra ${link} (vale uma vez, por 15 minutos)`,
+  description: 'O ajudante do seu cérebro: as áreas e os objetivos da sua vida, conectados.',
+  dominus: 'Dominus',
+  version: (v: string) => `Cerebro ${v}`,
+  dataAt: (dir: string) => `Seus dados ficam em ${dir}`,
+  noAi: 'Nenhuma IA conectada ainda',
+  aiReady: (name: string, version: string) =>
+    name === version ? `IA conectada: ${name}` : `IA conectada: ${name} ${version}`,
+  aiProblem: {
+    'not-installed': (name: string) => `${name} não está instalado neste computador`,
+    'not-logged-in': (name: string) => `${name} está instalado, mas sem login`,
+    'no-key': (name: string) => `${name}: falta a chave da API`,
+    'bad-key': (name: string) => `${name}: a chave da API foi recusada`,
+    unreachable: (name: string) => `${name} não respondeu`,
+  },
+  coreDown: 'O Dominus não respondeu; reinicie o Cerebro',
+  window: { session: 'sessão', day: 'dia', week: 'semana', month: 'mês', balance: 'saldo' },
+  pace: (pct: string) => `ritmo ${pct}`,
+  stale: 'leitura antiga',
+  weight: (w: string) => `peso ${w}`,
+  neuronCount: (all: number, craft: number) =>
+    all === 0
+      ? 'Nenhum neurônio ainda'
+      : `${all} ${all === 1 ? 'neurônio' : 'neurônios'}${craft ? ` · ${craft} de ofício` : ''}`,
+  number: (x: number) => x.toLocaleString('pt-BR'),
+  menu: {
+    nav: 'Principal',
+    open: 'Abrir menu',
+    close: 'Fechar menu',
+    memory: 'Memória',
+    devices: 'Aparelhos',
+    settings: 'Configurações',
+  },
+  appTitle: (name: string) => `Aplicação ${name}`,
+  appMissing: (name: string) => `A aplicação de ${name} ainda não foi construída.`,
+  network: {
+    button: (name: string) => `Internet de ${name}`,
+    buttonAsking: (name: string) => `Internet de ${name}: um site pede acesso`,
+    title: (name: string) => `Internet de ${name}`,
+    note: 'Os únicos sites que a aplicação pode ler, sempre pelo Cerebro. Só você libera.',
+    visitedNote:
+      'Os sites que o Navegador abriu nas pesquisas, numa janela própria, sem as suas contas.',
+    asking: 'Pede acesso',
+    never: 'Liberado · ainda não acessado',
+    hits: (n: number, when: string) =>
+      `${n} ${n === 1 ? 'acesso' : 'acessos'}${when ? ` · o último em ${when}` : ''}`,
+    researches: (n: number) => `Em ${n} ${n === 1 ? 'pesquisa' : 'pesquisas'}`,
+    allow: 'Liberar',
+    remove: 'Tirar',
+  },
+  uses: {
+    button: (name: string, total: number) => `Usos de ${name} pelo Dominus (${total})`,
+    title: 'Usos pelo Dominus',
+    none: 'O Dominus ainda não usou este neurônio.',
+    note: (shown: number, total: number) =>
+      `Cada vez que o Dominus usou este neurônio${total > shown ? ` (os ${shown} últimos de ${total})` : ''}.`,
+    kinds: { built: 'Construiu', adjusted: 'Ajustou', research: 'Pesquisou para ele' },
+    failed: 'Não deu certo',
+    request: (text: string) => `Pedido: ${text}`,
+  },
+  adjust: {
+    open: (name: string) => `Ajustar ${name}`,
+    title: (name: string) => `Ajustes de ${name}`,
+    none: 'Nenhum pedido ainda. Escreva abaixo o que mudar.',
+    close: 'Fechar os ajustes',
+  },
+  permissions: (name: string) => ({
+    button: `Permissões: quem pode pedir coisas a ${name}`,
+    title: `Quem pode pedir coisas a ${name}`,
+    note: 'Só você muda isto. Nada usa IA: cada pedido é conferido e gravado direto.',
+    grants: { view: 'Visualizar', create: 'Incluir', update: 'Alterar', delete: 'Remover' },
+    allowAnother: 'Liberar outro neurônio',
+    choose: 'Qual neurônio?',
+    revokeAll: 'Revogar tudo',
+    nobody: `Nenhum neurônio pode pedir coisas a ${name} ainda.`,
+    noData: `${name} ainda não tem dados para oferecer.`,
+    failed: 'Não deu para salvar; tente de novo.',
+  }),
+  build: {
+    ask: 'Peça ao Dominus',
+    askAdjust: (name: string) => `Peça um ajuste a ${name}`,
+    send: 'Enviar',
+    stop: 'Parar',
+    attach: 'Anexar imagem ou arquivo',
+    removeAttachment: (name: string) => `Tirar ${name}`,
+    attachLimits:
+      'Aceito até 6 anexos: imagens (png, jpg, webp, gif) e textos (txt, md, csv, json, html, xml).',
+    attachedOnly: 'Faça igual ao que está no anexo.',
+    plan: 'Plano',
+    step: {
+      read: (words: number) => `Pedido lido · ${words} ${words === 1 ? 'palavra' : 'palavras'}`,
+      memory: (count: number, similar: string | null) =>
+        count === 0
+          ? 'Memória vazia: será o primeiro neurônio'
+          : similar
+            ? `${count} ${count === 1 ? 'neurônio' : 'neurônios'}; ${similar} parece próximo`
+            : `${count} ${count === 1 ? 'neurônio' : 'neurônios'}; nenhum cuida disso ainda`,
+      thinking: 'Pensando no plano',
+      thought: (cost: string) => `Plano pronto · ${cost}`,
+      writing: (file: string) => `Criando ${file}`,
+      written: (file: string) => `${file} criado`,
+      checked: (files: number, size: string) =>
+        `Conferido: ${files} ${files === 1 ? 'arquivo' : 'arquivos'}, ${size}`,
+      waiting: (time: string) => `Esperando a cota renovar às ${time}`,
+      guide: (lessons: number) =>
+        `Guia de clonar lido${lessons ? ` · ${lessons} ${lessons === 1 ? 'lição' : 'lições'} desta instalação` : ''}`,
+      browse: (host: string, pages: number, done: boolean) =>
+        done
+          ? `${host} · ${pages} ${pages === 1 ? 'página' : 'páginas'}`
+          : `Navegador · abrindo ${host}`,
+      search: (query: string, done: boolean) => (done ? `Buscou: ${query}` : `Buscando: ${query}`),
+      cases: (count: number, done: boolean) =>
+        done
+          ? `${count} ${count === 1 ? 'caso guardado' : 'casos guardados'}`
+          : `Montando o gabarito · ${count} ${count === 1 ? 'caso' : 'casos'}`,
+      rules: (count: number) => `${count} ${count === 1 ? 'regra' : 'regras'} com fonte`,
+      findings: (count: number) =>
+        `${count} ${count === 1 ? 'achado' : 'achados'} (melhorias, defeitos, lacunas)`,
+      libraries: (count: number) =>
+        `${count} ${count === 1 ? 'biblioteca livre conferida' : 'bibliotecas livres conferidas'}`,
+      verify: (passed: number, total: number, done: boolean) =>
+        done ? `${passed} de ${total} casos batem` : 'Conferindo com o gabarito',
+      researching: 'Pesquisando',
+    },
+    role: { life: 'vida', craft: 'ofício' },
+    questionsTitle: 'Faltam detalhes',
+    questionsLead: 'Antes de planejar, preciso saber',
+    answers: 'Suas respostas',
+    reply: 'Responder',
+    reject: 'Rejeitar',
+    accept: 'Construir',
+    acceptAdjust: 'Ajustar',
+    change: 'Alterar',
+    changes: 'O que mudar no plano',
+    redo: 'Refazer o plano',
+    back: 'Voltar',
+    said: (text: string) => `Você disse: ${text}`,
+    understood: 'Como entendi',
+    creates: 'O que será criado',
+    changesList: 'O que vai mudar',
+    data: 'Dados',
+    links: 'Ligações',
+    reads: (name: string) => `Lê ${name}`,
+    linksNote: (name: string) =>
+      `Ao construir, ${name} ganha permissão para visualizar isso. Você muda pela chave.`,
+    checks: 'Como saber que ficou pronto',
+    limits: 'Fica para depois',
+    existing: (name: string) => `${name} já parece cuidar disso.`,
+    adjustExisting: (name: string) => `Ajustar ${name}`,
+    createAnyway: 'Criar um novo',
+    createAnywayText: (name: string) => `Quero um neurônio novo, separado de ${name}.`,
+    open: (name: string) => `Abrir ${name}`,
+    usd: (x: number) =>
+      `US$ ${x.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: x > 0 && x < 0.01 ? 4 : 2 })}`,
+    percent: (x: number) =>
+      `${(x * 100).toLocaleString('pt-BR', { maximumFractionDigits: x < 0.1 ? 1 : 0 })}%`,
+    thinkCost: (cost: string) => `Pensar custou ${cost}`,
+    estimate: {
+      fits: (cost: string, window: string, share: string) =>
+        `Construir: até ${cost} · cabe na ${window} (cerca de ${share})`,
+      tight: (cost: string, window: string, share: string) =>
+        `Construir: até ${cost} · justo na ${window} (cerca de ${share}); pode parar perto do fim`,
+      wait: (cost: string, window: string, time: string) =>
+        `Construir: até ${cost} · não cabe na ${window} agora; ela renova às ${time}`,
+      cost: (cost: string) => `Construir: até ${cost}`,
+      basis: (n: number) => `pelas últimas ${n} construções`,
+      unknown: 'Construir: sem estimativa ainda; ela vem depois de 3 construções medidas',
+      noAi: 'Nenhuma IA pronta para construir agora',
+    },
+    building: (name: string, files: number) =>
+      `Construindo ${name} · ${files} ${files === 1 ? 'arquivo' : 'arquivos'}`,
+    adjusting: (name: string, files: number) =>
+      `Ajustando ${name} · ${files} ${files === 1 ? 'arquivo' : 'arquivos'}`,
+    left: (min: number, sec: number) =>
+      `≈ ${min ? `${min} min ` : ''}${String(sec).padStart(2, '0')} s para concluir`,
+    late: 'Passou da previsão; quase lá',
+    firstTime: 'Sem previsão ainda: medindo esta primeira vez',
+    built: (name: string) => `${name} · neurônio criado`,
+    adjusted: (name: string) => `${name} · ajustado`,
+    buildCost: (cost: string | null) =>
+      cost ? `Construir custou ${cost}` : 'Construir: a IA não informou o custo',
+    adjustCost: (cost: string | null) =>
+      cost ? `Ajustar custou ${cost}` : 'Ajustar: a IA não informou o custo',
+    failed: {
+      'none-ready': 'Nenhuma IA pronta. Conecte uma IA e tente de novo.',
+      'all-out-of-quota': 'Todas as IAs estão sem cota agora.',
+      'bad-plan': 'O plano veio num formato que não deu para ler.',
+      'bad-build': 'A construção não deixou uma aplicação que funcione. Nada foi criado.',
+      stale: 'Esse plano já tinha mudado. Nada mais foi feito.',
+      attachment:
+        'Não deu para anexar: imagens de até 5 MB e textos de até 200 KB, no máximo 6 arquivos.',
+      other: (why: string) => `Parou: ${why}`,
+    },
+    retry: 'Tentar de novo',
+    close: 'Fechar',
+    undo: 'Desfazer',
+    undone: (name: string) => `${name} · ajuste desfeito, a versão anterior voltou`,
+    canceled: 'Cancelado.',
+    buildCanceled: 'Construção cancelada. Nada foi criado.',
+    chooseTitle: 'Qual função copiar?',
+    chooseLead: (n: number) => `O app tem ${n} ${n === 1 ? 'função' : 'funções'}`,
+    chooseNote: 'Copiar uma só sai melhor e mais barato. As outras podem virar neurônios depois.',
+    researchThis: 'Pesquisar esta',
+    observed: 'O que observei',
+    shot: 'A tela do original',
+    fields: 'campos',
+    outputs: 'saídas',
+    server: 'servidor',
+    screen: 'A tela',
+    screenNote:
+      'Os elementos do original, na ordem dele, montados pelo Cerebro com as peças dos neurônios, sem gastar IA. Toque para ver maior.',
+    screenOpen: 'Ver a tela proposta maior',
+    mockValue: 'Valor',
+    mockChoice: 'Opção',
+    dataSources: 'De onde vêm os dados',
+    sourceLine: (host: string, updates: string) =>
+      `${host}, grátis e sem chave${updates ? ` · ${updates}` : ''}`,
+    sourceOriginal: (original: string) => `No original: ${original}`,
+    answerKey: (n: number) => `Gabarito · ${n} ${n === 1 ? 'caso' : 'casos'}`,
+    answerKeyNote: (observed: number, written: number) =>
+      `${observed} ${observed === 1 ? 'observado' : 'observados'} no original${written ? `, ${written} de exemplos escritos` : ''}. A aplicação só fica pronta quando der o mesmo resultado em todos.`,
+    showCases: (n: number) => `Ver os ${n} casos`,
+    rulesFound: 'Regras encontradas',
+    improvements: 'Melhorias que os usuários pedem',
+    defect: 'Defeito do original, que o clone não copia:',
+    gaps: 'Lacunas',
+    sites: 'Sites visitados',
+    pages: (n: number) => `${n} ${n === 1 ? 'página' : 'páginas'}`,
+    sitesNote:
+      'Numa janela própria do Navegador, sem as suas contas e sem acesso aos seus arquivos.',
+    observedSource: 'observado',
+    researchCost: (cost: string) => `Pesquisar e planejar custou ${cost}`,
+    internet: 'Internet',
+    internetNote: (name: string) =>
+      `Ao construir, ${name} pode ler só estes sites, pelo Cerebro. Você tira pelo globo.`,
+    libraries: 'Bibliotecas livres que vão dentro dele',
+    library: (version: string, license: string, weekly: string) =>
+      `${version} · ${license} · ${weekly} downloads por semana`,
+    librariesNote:
+      'Conferidas no registro do npm. Vão na pasta do neurônio: funcionam sem internet, sem custo.',
+    verified: (passed: number, total: number) => `${passed} de ${total} casos do gabarito batem`,
+  },
+  settings: {
+    title: 'Configurações',
+    nav: 'Seções de Configurações',
+    sections: {
+      general: 'Geral',
+      connections: 'Conexões',
+      usage: 'Uso',
+      processes: 'Processos',
+      runs: 'Execuções',
+      neurons: 'Neurônios',
+      devices: 'Aparelhos',
+    },
+    general: {
+      depth: 'Profundidade da pesquisa',
+      depthLead:
+        'Quanto o Navegador lê antes de planejar uma cópia. Mais fundo acha mais regras e casos, e gasta mais.',
+      depths: {
+        shallow: 'Rasa · até 10 páginas',
+        medium: 'Média · até 25 páginas',
+        deep: 'Funda · até 60 páginas',
+      },
+      saved: 'Salvo.',
+      about: 'Sobre',
+      version: 'versão',
+      data: 'seus dados',
+      language: 'Idioma',
+      languageLead:
+        'O idioma das telas neste aparelho. Os neurônios já construídos em outro idioma são traduzidos pelo Dominus (um ajuste de cada, com custo); os novos seguem a língua em que você pede.',
+      languages: { auto: 'Automático · o do navegador' },
+      appTitle: 'Aplicativo',
+      app: {
+        installed: 'O Cerebro está instalado neste aparelho.',
+        offer: 'Instale o Cerebro na tela inicial: ele abre em tela cheia, como um aplicativo.',
+        ios: 'Para instalar, toque em Compartilhar e depois em Adicionar à Tela de Início.',
+        menu: 'Para instalar, abra o menu do navegador (⋮) e toque em Instalar app ou Adicionar à tela inicial. Se ele já estiver instalado, abra pelo ícone na tela inicial.',
+      },
+      install: 'Instalar o app',
+    },
+    connections: {
+      subscription: 'Assinatura',
+      apis: 'APIs',
+      none: 'Nenhuma API conectada. O Dominus usa só o Claude Code.',
+      ok: (version: string) => `pronto · ${version}`,
+      problem: {
+        'not-installed': 'não instalado',
+        'not-logged-in': 'sem login: rode o programa e entre na sua conta',
+        'no-key': 'sem chave',
+        'bad-key': 'a chave foi recusada',
+        unreachable: 'não respondeu',
+      },
+      check: 'Testar',
+      checking: 'Testando…',
+      remove: 'Remover',
+      confirmRemove: (name: string) => `Remover ${name}? A chave sai do cofre.`,
+      add: 'Conectar uma API',
+      preset: 'Provedor',
+      name: 'Nome',
+      address: 'Endereço',
+      key: 'Chave da API',
+      keyKept: 'A chave guardada continua; escreva só para trocar.',
+      models: 'Modelos',
+      roles: { cheap: 'barato', balanced: 'equilibrado', strong: 'forte' },
+      modelsNote: 'Confira os nomes no site do provedor; eles mudam com o tempo.',
+      cap: 'Teto por mês (US$, opcional)',
+      save: 'Salvar',
+      cancel: 'Cancelar',
+      edit: 'Editar',
+      noVault:
+        'Este computador não tem um cofre de senhas que o Cerebro possa usar, então a chave não foi guardada.',
+      local: 'local, sem custo',
+      capOf: (cap: string) => `teto de ${cap} por mês`,
+    },
+    usage: {
+      none: 'Ainda sem leituras.',
+      used: (share: string) => `${share} usado`,
+      resets: (when: string) => `renova ${when}`,
+      blocked: 'esgotado',
+      spent: (cost: string, calls: number) =>
+        `${cost} nos últimos 7 dias · ${calls} ${calls === 1 ? 'chamada' : 'chamadas'}`,
+      windows: { session: 'sessão', day: 'dia', week: 'semana', month: 'mês', balance: 'saldo' },
+      estimated: 'estimado',
+    },
+    processes: {
+      none: 'Nenhum pedido ainda.',
+      stages: {
+        request: 'Pedido',
+        research: 'Pesquisa',
+        plan: 'Plano',
+        build: 'Construção',
+        out: 'Saída',
+      },
+      said: (text: string) => `Você disse: ${text}`,
+      researched: (sites: number, pages: number, cases: number, rules: number) =>
+        `${pages} ${pages === 1 ? 'página' : 'páginas'} em ${sites} ${sites === 1 ? 'site' : 'sites'} · ${cases} ${cases === 1 ? 'caso' : 'casos'} no gabarito · ${rules} ${rules === 1 ? 'regra' : 'regras'}`,
+      gaps: (n: number) => `${n} ${n === 1 ? 'lacuna' : 'lacunas'}`,
+      libraries: (list: string) => `bibliotecas: ${list}`,
+      parts: (n: number) => `${n} ${n === 1 ? 'parte' : 'partes'}`,
+      files: (n: number) => `${n} ${n === 1 ? 'arquivo' : 'arquivos'}`,
+      verified: (passed: number, total: number) => `${passed} de ${total} casos do gabarito`,
+      outcome: {
+        built: 'Neurônio criado',
+        adjusted: 'Neurônio ajustado',
+        undone: 'Ajuste desfeito',
+        rejected: 'Rejeitado',
+        canceled: 'Cancelado',
+        failed: 'Parou',
+        open: 'Esperando você',
+        running: 'Em andamento',
+      },
+      cost: (cost: string) => `custou ${cost}`,
+      open: (name: string) => `Abrir ${name}`,
+    },
+    runs: {
+      none: 'Nenhum trabalho ainda.',
+      kinds: {
+        research: 'Pesquisar',
+        think: 'Planejar',
+        build: 'Construir',
+        checks: 'Conferir o gabarito',
+        other: 'Outro',
+      },
+      status: {
+        queued: 'na fila',
+        running: 'rodando',
+        waiting: 'esperando a cota',
+        done: 'concluído',
+        failed: 'falhou',
+        canceled: 'cancelado',
+      },
+      stop: 'Parar',
+    },
+    neurons: {
+      none: 'Nenhum neurônio ainda.',
+      open: 'Abrir',
+      rename: 'Renomear',
+      name: 'Nome',
+      save: 'Salvar',
+      cancel: 'Cancelar',
+      role: 'Papel',
+      weight: (w: number) => `peso ${w.toLocaleString('pt-BR')}`,
+      noApp: 'sem aplicação',
+      remove: 'Excluir',
+      confirmTitle: (name: string) => `Excluir ${name}?`,
+      confirmText:
+        'Apaga a aplicação, os dados, as permissões e as ligações dele. Não dá para desfazer.',
+      confirm: 'Excluir de vez',
+      removed: (name: string) => `${name} foi excluído.`,
+    },
+    failed: (why: string) => `Não deu certo: ${why}`,
+  },
+  devices: {
+    title: 'Aparelhos',
+    unknown: 'Aparelho de antes desta versão',
+    kind: { phone: 'Celular', tablet: 'Tablet', computer: 'Computador' },
+    thisOne: 'este',
+    revoke: 'Revogar',
+    seen: (when: string) => `visto ${when}`,
+    now: 'agora',
+    pair: 'Parear um celular',
+    pairTitle: 'Aponte a câmera do celular para o código',
+    pairOnce: 'Vale uma vez',
+    pairCode: 'Código de pareamento',
+    pairDone: 'Celular pareado.',
+    pairExpired: 'O código venceu. Gere outro quando o celular estiver à mão.',
+    cancel: 'Cancelar',
+    needRemote: 'Para parear um celular, ligue antes o acesso de fora de casa.',
+    onlyHere: 'O pareamento e o acesso remoto se mudam no próprio computador do Cerebro.',
+    checkingRemote: 'Conferindo o túnel…',
+    remoteTitle: 'Acesso de fora de casa',
+    remote: {
+      'not-installed':
+        'Para abrir o Cerebro no celular fora de casa, instale o cloudflared neste computador. Ele liga o Cerebro a um endereço do seu domínio na Cloudflare, sem abrir portas no roteador.',
+      'signed-out':
+        'O cloudflared está instalado. Falta entrar na sua conta da Cloudflare, uma vez só.',
+      signingIn:
+        'Na página da Cloudflare que abriu, escolha o seu domínio e toque em Authorize. Esta tela segue sozinha.',
+      ready:
+        'Pronto. Escreva o endereço do seu domínio na Cloudflare, por exemplo meucerebro.app, e ligue.',
+      connecting: (host: string) => `Conectando ${host}…`,
+      notRunning: (why: string) =>
+        `O túnel não está conectado${why ? ` (${why})` : ''}. Confira a internet deste computador e ligue de novo.`,
+      serving: (url: string) =>
+        `Ligado: ${url}. Qualquer aparelho chega até a porta; só entram os que você parear.`,
+    },
+    download: 'Baixar o cloudflared',
+    signIn: 'Entrar na Cloudflare',
+    openSignIn: 'Abrir a página da Cloudflare',
+    address: 'Endereço',
+    badHost: 'Esse endereço não parece um domínio. Exemplo: meucerebro.app',
+    turnOn: 'Ligar o acesso remoto',
+    turningOn: 'Ligando…',
+    turnOnAgain: 'Ligar de novo',
+    turnOff: 'Desligar',
+    failed: (detail: string) => `Não deu para ligar: ${detail}`,
+    welcome: 'Este aparelho entrou no Cerebro',
+    installIos:
+      'Para usar como aplicativo, toque em Compartilhar e depois em Adicionar à Tela de Início.',
+    installOther: 'Para usar como aplicativo, instale pelo menu do navegador.',
+    install: 'Instalar o Cerebro',
+    openMemory: 'Abrir a Memória',
+  },
+  locked:
+    'Para entrar, abra o link que apareceu no terminal onde o Cerebro foi iniciado. No celular, pareie pelo computador, em Aparelhos.',
+};

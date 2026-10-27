@@ -1,6 +1,6 @@
 import { headers } from 'next/headers';
 
-import { Block, Header } from '@/components/settings-ui';
+import { Block } from '@/components/settings-ui';
 import { pickLocale, t } from '@/lib/i18n';
 import { coreRequest } from '@/lib/server/core';
 
@@ -35,7 +35,6 @@ export default async function UsagePage() {
     });
   return (
     <>
-      <Header title={all.settings.sections.usage} text={m.lead} />
       {list.map((u) => (
         <Block key={u.provider} title={u.name}>
           {u.windows.length === 0 && <p>{m.none}</p>}

@@ -34,9 +34,9 @@ export function isSameOrigin(origin: string | null | undefined, host: string): b
 export type Verdict = 'allow' | 'wrong-host' | 'wrong-origin';
 
 /**
- * The host the browser really used. Behind the remote channel (Tailscale Serve, on this same
- * computer) a request may arrive for the loopback, naming the owner's address in
- * X-Forwarded-Host; that address counts only if it is the one the owner turned on.
+ * The host the browser really used. The tunnel of the remote channel keeps it in Host; a proxy on
+ * this same computer may instead send the loopback, naming the owner's address in
+ * X-Forwarded-Host. Either way, that address counts only if it is the one the owner turned on.
  */
 export function publicHost(
   host: string | null,

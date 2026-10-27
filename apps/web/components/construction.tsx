@@ -35,8 +35,17 @@ async function call<T>(path: string, body?: object): Promise<T> {
   return data as T;
 }
 
+// The core refuses a step the plan is already past (it changed elsewhere, or a second tap).
+const STALE = new Set([
+  'nothing to reject',
+  'no plan to build',
+  'nothing running',
+  'nothing to undo',
+]);
+
 /** A problem code from the core, in the owner's words. */
 function problemText(error: string, b: Messages['build']) {
+  if (STALE.has(error)) return b.failed.stale;
   const code = error.split(':')[0]!.trim() as keyof Messages['build']['failed'];
   if (code !== 'other' && code in b.failed) return b.failed[code] as string;
   return b.failed.other(error);
@@ -281,10 +290,21 @@ export function Construction({
     return () => window.removeEventListener('keydown', onKey);
   }, [running, stop]);
 
-  async function start(request: string, on = target?.id) {
+  async function start(request: string, files: File[] = [], on = target?.id) {
     setProblem(null);
     try {
-      const { id } = await call<{ id: string }>('/api/plans', { request, target: on });
+      let id: string;
+      if (files.length) {
+        // With files: a form (they go to the data folder before the core sees the request).
+        const form = new FormData();
+        form.set('request', request);
+        if (on) form.set('target', on);
+        for (const f of files) form.append('files', f);
+        const res = await fetch('/api/plans', { method: 'POST', body: form });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
+        id = data.id;
+      } else id = (await call<{ id: string }>('/api/plans', { request, target: on })).id;
       await load(id);
       return true;
     } catch (e) {
@@ -307,17 +327,36 @@ export function Construction({
     }
   }
 
-  async function act(action: 'answer' | 'accept' | 'reject' | 'undo', body: object = {}) {
-    if (!plan) return false;
+  // One action at a time: on a slow connection a second tap would arrive after the first.
+  const acting = useRef(false);
+  async function act(
+    action: 'answer' | 'accept' | 'reject' | 'undo',
+    body: object = {},
+    files: File[] = [],
+  ) {
+    if (!plan || acting.current) return false;
+    acting.current = true;
     setProblem(null);
     try {
-      const next = await call<PlanView>(`/api/plans/${plan.id}/${action}`, body);
+      let next: PlanView;
+      if (files.length) {
+        // An answer with a drawing: a form, as a request with files.
+        const form = new FormData();
+        form.set('text', (body as { text?: string }).text ?? '');
+        for (const f of files) form.append('files', f);
+        const res = await fetch(`/api/plans/${plan.id}/${action}`, { method: 'POST', body: form });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
+        next = data;
+      } else next = await call<PlanView>(`/api/plans/${plan.id}/${action}`, body);
       setPlan(action === 'reject' ? null : next);
       setSecs(0);
       return true;
     } catch (e) {
       setProblem(problemText((e as Error).message, b));
       return false;
+    } finally {
+      acting.current = false;
     }
   }
 
@@ -473,6 +512,9 @@ export function Construction({
           label={target ? b.askAdjust(target.name) : b.ask}
           sendLabel={b.send}
           stopLabel={b.stop}
+          attachLabel={b.attach}
+          removeLabel={b.removeAttachment}
+          tooMany={b.attachLimits}
           busy={running}
           onSend={start}
           onStop={() => void stop()}
@@ -497,6 +539,9 @@ export function Construction({
               label={b.askAdjust(target.name)}
               sendLabel={b.send}
               stopLabel={b.stop}
+              attachLabel={b.attach}
+              removeLabel={b.removeAttachment}
+              tooMany={b.attachLimits}
               busy={running}
               onSend={start}
               onStop={() => void stop()}
@@ -512,14 +557,14 @@ export function Construction({
           m={b}
           windows={m.window}
           locale={locale}
-          onAnswer={(text) => act('answer', { text })}
+          onAnswer={(text, files) => act('answer', { text }, files)}
           onAccept={(improvements) => void act('accept', { improvements })}
           onReject={() => void act('reject')}
           onAdjust={async (neuron) => {
             // The same request, as an adjustment of that neuron, on its own screen.
             const request = plan.request;
             await act('reject');
-            if (await start(request, neuron)) router.push(`/neuron/${neuron}`);
+            if (await start(request, [], neuron)) router.push(`/neuron/${neuron}`);
           }}
         />
       )}

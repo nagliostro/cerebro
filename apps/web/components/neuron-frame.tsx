@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+/** An application link without its signature: /apps/{id}/{token}/... */
+const unsigned = (src: string) => src.replace(/^(\/apps\/[^/]+\/)[^/]+/, '$1');
+
 /**
  * A neuron's application, isolated in a sandboxed frame over the same sky. Its bridge
  * (neuron-kit/cerebro.js) talks only to this page, which takes messages only from its own frame
@@ -48,7 +51,11 @@ export function NeuronFrame({ id, src, title }: { id: string; src: string; title
     };
     window.addEventListener('message', onMessage);
     // The frame gets its address only once this page listens, so no early request is lost.
-    if (frame.current && frame.current.getAttribute('src') !== src) frame.current.src = src;
+    // Each read of the page signs the link again (coming back to the window, an event); the
+    // frame keeps what the owner was doing and reloads only for another application, version
+    // or language.
+    const loaded = frame.current?.getAttribute('src');
+    if (frame.current && (!loaded || unsigned(loaded) !== unsigned(src))) frame.current.src = src;
     return () => {
       window.removeEventListener('message', onMessage);
       clearTimeout(timer);

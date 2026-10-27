@@ -1,7 +1,6 @@
 import { headers } from 'next/headers';
 import Link from 'next/link';
 
-import { Header } from '@/components/settings-ui';
 import { pickLocale, t, type Messages } from '@/lib/i18n';
 import { coreRequest } from '@/lib/server/core';
 
@@ -86,9 +85,8 @@ export default async function Processes() {
 
   return (
     <>
-      <Header title={all.settings.sections.processes} text={m.lead} />
-      {list.length === 0 && <p className="mt-10">{m.none}</p>}
-      <ul className="mt-8 divide-y divide-white/6">
+      {list.length === 0 && <p>{m.none}</p>}
+      <ul className="divide-y divide-white/6">
         {list.map((e, i) => {
           const n = neurons.get(e.neuron ?? e.target ?? '');
           const cost = e.thinkCostUsd + (e.buildCostUsd ?? 0);
@@ -96,7 +94,7 @@ export default async function Processes() {
             e.status,
           );
           return (
-            <li key={e.id} className="py-3">
+            <li key={e.id} className="py-3 first:pt-0">
               <details open={i === 0} className="group/process">
                 <summary className="flex cursor-pointer list-none flex-wrap items-baseline gap-x-3 gap-y-1 py-1 [&::-webkit-details-marker]:hidden">
                   {n && (

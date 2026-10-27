@@ -6,7 +6,6 @@ import { headers } from 'next/headers';
 import { dataDir } from '@cerebro/dominus/data-dir';
 
 import { NeuronsPanel, type NeuronRow } from '@/components/settings-neurons';
-import { Header } from '@/components/settings-ui';
 import { pickLocale, t } from '@/lib/i18n';
 import { coreRequest } from '@/lib/server/core';
 
@@ -24,7 +23,6 @@ export default async function Neurons() {
   }));
   return (
     <>
-      <Header title={m.sections.neurons} text={m.neurons.lead} />
       <NeuronsPanel initial={rows} locale={locale} />
     </>
   );

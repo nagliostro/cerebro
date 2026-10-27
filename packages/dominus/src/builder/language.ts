@@ -29,3 +29,10 @@ export function requestLocale(text: string): 'pt-BR' | 'en' | null {
   if (pt === en) return null;
   return pt > en ? 'pt-BR' : 'en';
 }
+
+/** A language code from the screen (BCP 47, like "pt-BR"), or English when it is not one. */
+export function readLocale(value: unknown): string {
+  return typeof value === 'string' && /^[a-z]{2,3}(-[A-Za-z0-9]{2,8}){0,2}$/.test(value)
+    ? value
+    : 'en';
+}

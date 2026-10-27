@@ -7,7 +7,10 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { t, type Locale } from '@/lib/i18n';
 import type { SessionInfo } from '@/lib/server/session';
-import type { ChannelStatus } from '@/lib/server/tailscale';
+import type { ChannelStatus } from '@/lib/server/cloudflare';
+
+import { useInstall } from './install';
+import { Field } from './settings-ui';
 
 export type DeviceRow = SessionInfo & { current: boolean };
 type Pairing = { url: string; svg: string; expiresAt: number };
@@ -39,7 +42,7 @@ function ago(ms: number, now: number, locale: Locale, nowText: string) {
 
 /**
  * Who can enter the Cerebro, each device on its own line, and the way to add a phone: access
- * from outside home through the owner's Tailscale, then a one-time QR. Pairing and the channel
+ * from outside home through a Cloudflare Tunnel to the owner's domain, then a one-time QR. Pairing and the channel
  * change only on the computer itself; any device can revoke.
  */
 export function DevicesPanel({
@@ -61,24 +64,32 @@ export function DevicesPanel({
   const [devices, setDevices] = useState(initial);
   const [channel, setChannel] = useState(initialChannel);
 
-  // The page opens at once; Tailscale answers on its own time (its CLI can take seconds).
+  // The Cloudflare page where the owner authorizes this computer, while it waits on them.
+  const [signIn, setSignIn] = useState<string | null>(null);
+  // The page opens at once; cloudflared answers on its own time (it asks Cloudflare). While it
+  // waits on the sign-in in the browser, or connects, it is asked again.
+  const waiting = channel?.state === 'connecting' || (channel?.state === 'signed-out' && !!signIn);
   useEffect(() => {
-    if (!local || channel) return;
+    if (!local || (channel && !waiting)) return;
     let gone = false;
-    void fetch('/api/remote')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((c: ChannelStatus | null) => !gone && c && setChannel(c));
+    const ask = () =>
+      fetch('/api/remote')
+        .then((r) => (r.ok ? r.json() : null))
+        .then((c: ChannelStatus | null) => !gone && c && setChannel(c));
+    if (!channel) void ask();
+    const every = waiting ? setInterval(ask, 3000) : undefined;
     return () => {
       gone = true;
+      clearInterval(every);
     };
-  }, [local, channel]);
+  }, [local, channel, waiting]);
   const [pairing, setPairing] = useState<Pairing | null>(null);
   const [left, setLeft] = useState(0);
   const [note, setNote] = useState<string | null>(null);
-  // Serve must first be allowed in the owner's network, once, at this Tailscale page.
-  const [enable, setEnable] = useState<string | null>(null);
+  // What the owner typed; until then, the address used before.
+  const [address, setAddress] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [install, setInstall] = useState<{ prompt: () => Promise<void> } | null>(null);
+  const install = useInstall();
   const [now, setNow] = useState(() => initial[0]?.lastSeen ?? 0);
 
   const reload = useCallback(async () => {
@@ -118,16 +129,6 @@ export function DevicesPanel({
     return () => clearInterval(timer);
   }, [pairing, devices.length, m]);
 
-  // Browsers that can install it offer a button of their own (Chrome, Edge, Android).
-  useEffect(() => {
-    const offer = (e: Event) => {
-      e.preventDefault();
-      setInstall(e as unknown as { prompt: () => Promise<void> });
-    };
-    window.addEventListener('beforeinstallprompt', offer);
-    return () => window.removeEventListener('beforeinstallprompt', offer);
-  }, []);
-
   async function pair() {
     setNote(null);
     try {
@@ -139,16 +140,26 @@ export function DevicesPanel({
     }
   }
 
-  async function switchRemote(on: boolean) {
+  async function switchRemote(on: boolean, host?: string) {
     setBusy(true);
     setNote(null);
-    setEnable(null);
     try {
-      setChannel(await post<ChannelStatus>('/api/remote', { on }));
+      setChannel(await post<ChannelStatus>('/api/remote', { on, host }));
     } catch (e) {
-      const err = e as { detail?: string; enable?: string; message: string };
-      if (err.enable) setEnable(err.enable);
-      else setNote(m.failed(err.detail ?? err.message));
+      const err = e as { detail?: string; message: string };
+      setNote(err.message === 'bad-host' ? m.badHost : m.failed(err.detail ?? err.message));
+    }
+    setBusy(false);
+  }
+
+  async function startSignIn() {
+    setBusy(true);
+    setNote(null);
+    try {
+      const { url } = await post<{ url: string }>('/api/remote', { signIn: true });
+      setSignIn(url);
+    } catch (e) {
+      setNote(m.failed((e as { detail?: string }).detail ?? (e as Error).message));
     }
     setBusy(false);
   }
@@ -177,10 +188,11 @@ export function DevicesPanel({
           <h2 className="text-(--cb-highlight)">{m.welcome}</h2>
           <p>{ios ? m.installIos : m.installOther}</p>
           <div className="mt-2 flex gap-2">
-            {install && (
+            {/* Browsers that can install it offer a button of their own (Chrome, Edge, Android). */}
+            {install.state === 'offer' && (
               <button
                 type="button"
-                onClick={() => void install.prompt()}
+                onClick={() => void install.install()}
                 className={`${PILL} bg-white/8 hover:text-white`}
               >
                 {m.install}
@@ -193,9 +205,8 @@ export function DevicesPanel({
         </section>
       )}
 
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <h1 className="text-(--cb-highlight)">{m.title}</h1>
-        {local && serving && !pairing && (
+      {local && serving && !pairing && (
+        <div className="mb-2 flex items-center justify-end gap-3">
           <button
             type="button"
             onClick={() => void pair()}
@@ -204,14 +215,13 @@ export function DevicesPanel({
             <QrCode aria-hidden className="size-4" />
             {m.pair}
           </button>
-        )}
-      </div>
-      <p>{m.lead}</p>
+        </div>
+      )}
 
       {pairing && (
         <section
           aria-label={m.pair}
-          className="mt-7 grid justify-items-center gap-3.5 rounded-[10px] px-4 py-6 text-center shadow-[inset_0_0_0_1px_var(--cb-outline)]"
+          className="grid justify-items-center gap-3.5 rounded-[10px] px-4 py-6 text-center shadow-[inset_0_0_0_1px_var(--cb-outline)]"
         >
           <p className="text-(--cb-highlight)">{m.pairTitle}</p>
           <div
@@ -244,7 +254,7 @@ export function DevicesPanel({
         </p>
       )}
 
-      <ul className="mt-5">
+      <ul className="mt-5 first:mt-0">
         {/* This one first, then the most recently seen. */}
         {[...devices]
           .sort((a, b) => Number(b.current) - Number(a.current))
@@ -253,7 +263,7 @@ export function DevicesPanel({
             return (
               <li
                 key={d.id}
-                className="flex items-center gap-3 py-3.5 shadow-[0_1px_0_oklch(1_0_0/6%)]"
+                className="flex items-center gap-3 py-3.5 shadow-[0_1px_0_oklch(1_0_0/6%)] first:pt-0"
               >
                 <Icon aria-hidden className="size-4 shrink-0" strokeWidth={1.75} />
                 <div className="min-w-0 flex-1">
@@ -279,7 +289,7 @@ export function DevicesPanel({
           })}
       </ul>
 
-      <section aria-label={m.remoteTitle} className="mt-12">
+      <section aria-label={m.remoteTitle} className="mt-8 border-t border-white/6 pt-8">
         <h2 className="text-(--cb-highlight)">{m.remoteTitle}</h2>
         {!local ? (
           <p className="mt-1">{m.onlyHere}</p>
@@ -288,17 +298,19 @@ export function DevicesPanel({
         ) : (
           <div className="mt-1 grid justify-items-start gap-3">
             <p>
-              {channel.state === 'ready'
-                ? m.remote.ready(channel.host)
-                : channel.state === 'serving'
-                  ? m.remote.serving(`https://${channel.host}`)
+              {channel.state === 'serving'
+                ? m.remote.serving(`https://${channel.host}`)
+                : channel.state === 'connecting'
+                  ? m.remote.connecting(channel.host)
                   : channel.state === 'not-running'
                     ? m.remote.notRunning(channel.detail)
-                    : m.remote[channel.state]}
+                    : channel.state === 'signed-out' && signIn
+                      ? m.remote.signingIn
+                      : m.remote[channel.state]}
             </p>
             {channel.state === 'not-installed' && (
               <a
-                href="https://tailscale.com/download"
+                href="https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className={`${PILL} bg-white/8 hover:text-white`}
@@ -306,38 +318,71 @@ export function DevicesPanel({
                 {m.download}
               </a>
             )}
-            {channel.state === 'ready' && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void switchRemote(true)}
-                className={`${PILL} bg-white text-[oklch(0.15_0.006_265)]`}
-              >
-                {m.turnOn}
-              </button>
-            )}
-            {serving && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void switchRemote(false)}
-                className={`${PILL} px-3 hover:text-white`}
-              >
-                {m.turnOff}
-              </button>
-            )}
-            {enable && (
-              <>
-                <p>{m.enableFirst}</p>
+            {channel.state === 'signed-out' &&
+              (signIn ? (
                 <a
-                  href={enable}
+                  href={signIn}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={`${PILL} bg-white/8 hover:text-white`}
                 >
-                  {m.enable}
+                  {m.openSignIn}
                 </a>
-              </>
+              ) : (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void startSignIn()}
+                  className={`${PILL} bg-white text-[oklch(0.15_0.006_265)]`}
+                >
+                  {m.signIn}
+                </button>
+              ))}
+            {channel.state === 'ready' && (
+              <form
+                aria-label={m.turnOn}
+                className="grid w-full max-w-sm justify-items-start gap-3"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void switchRemote(true, address ?? channel.host ?? '');
+                }}
+              >
+                <Field
+                  id="remote-address"
+                  label={m.address}
+                  value={address ?? channel.host ?? ''}
+                  onChange={setAddress}
+                />
+                <button
+                  type="submit"
+                  disabled={busy || !(address ?? channel.host)}
+                  className={`${PILL} bg-white text-[oklch(0.15_0.006_265)] disabled:opacity-50`}
+                >
+                  {busy ? m.turningOn : m.turnOn}
+                </button>
+              </form>
+            )}
+            {(serving || channel.state === 'connecting' || channel.state === 'not-running') && (
+              <div className="flex flex-wrap gap-2">
+                {channel.state === 'not-running' && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void switchRemote(true, channel.host)}
+                    className={`${PILL} bg-white text-[oklch(0.15_0.006_265)]`}
+                  >
+                    {m.turnOnAgain}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void switchRemote(false)}
+                  className={`${PILL} px-3 hover:text-white`}
+                >
+                  {m.turnOff}
+                </button>
+              </div>
             )}
             {local && !serving && <p>{m.needRemote}</p>}
           </div>

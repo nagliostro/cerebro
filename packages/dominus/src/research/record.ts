@@ -1,6 +1,7 @@
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { netGet } from '../browser/fetch.ts';
 import { checkLibrary, LibraryError, MAX_LIBRARIES, type Library } from './libraries.ts';
 
 // What a research finds, written by the AI one piece at a time through tools (never as free
@@ -16,6 +17,41 @@ export type Case = {
   source: string;
 };
 export type Sourced = { text: string; source: string };
+
+/**
+ * Live data the feature shows (rates, prices, the weather): where the original gets it, and the
+ * free public site the neuron will read instead, proven by the Cerebro opening its example.
+ */
+export type DataSource = {
+  /** What it gives, e.g. "exchange rates and their history". */
+  data: string;
+  /** Where the original gets it, and whether that is paid. */
+  original: string;
+  host: string;
+  /** A link that answered when the research recorded it. */
+  example: string;
+  /** How fresh it is, e.g. "once a day, about 16:00 CET". */
+  updates: string;
+  /** How to ask for a period, when it has history. */
+  history: string;
+};
+
+/** One element of the original's screen, top to bottom (what the Interface lays out). */
+export type ScreenItem = { kind: (typeof SCREEN_KINDS)[number]; text: string; detail: string };
+export const SCREEN_KINDS = [
+  'headline',
+  'number',
+  'text',
+  'field',
+  'choice',
+  'pair',
+  'swap',
+  'button',
+  'tabs',
+  'chart',
+  'list',
+  'source',
+] as const;
 
 export type Research = {
   /** The feature being copied, in the owner's words. */
@@ -33,6 +69,10 @@ export type Research = {
   gaps: string[];
   /** Free libraries that do the hard part, checked on the npm registry. */
   libraries: Library[];
+  /** Where its live data comes from, each free site checked by the Cerebro. */
+  sources: DataSource[];
+  /** The original's screen, top to bottom. */
+  screen: ScreenItem[];
   /** The research stopped to ask the owner (which feature, where from). */
   question: { text: string; options: string[] } | null;
   /** The main screenshot, a file in the research folder. */
@@ -53,12 +93,14 @@ export const emptyResearch = (): Research => ({
   defects: [],
   gaps: [],
   libraries: [],
+  sources: [],
+  screen: [],
   question: null,
   screenshot: null,
   sites: [],
 });
 
-export const LIMITS = { cases: 40, rules: 20, findings: 10, fields: 24 };
+export const LIMITS = { cases: 40, rules: 20, findings: 10, fields: 24, sources: 3, screen: 16 };
 
 export class RecordError extends Error {}
 
@@ -91,6 +133,61 @@ function flat(v: unknown, what: string): Record<string, string> {
   return out;
 }
 
+/** An output is a value as the original shows it, never a note about it. */
+function values(out: Record<string, string>) {
+  for (const [k, v] of Object.entries(out))
+    if (v.split(' ').length > 8)
+      throw new RecordError(
+        `output "${k}" reads like a note; record only the value the original shows (notes go in add_rule or add_finding)`,
+      );
+  return out;
+}
+
+/** Opens the example through the same guarded path the application will use. */
+async function provenSource(args: Record<string, unknown>): Promise<DataSource> {
+  const example = text(args.example, 300);
+  let host: string;
+  try {
+    const u = new URL(example);
+    if (u.protocol !== 'https:') throw new Error();
+    host = u.hostname.toLowerCase();
+  } catch {
+    throw new RecordError('example must be an https:// link that gives the data');
+  }
+  let answer;
+  try {
+    answer = await netGet(example, (h) => h === host);
+  } catch (e) {
+    throw new RecordError(
+      `the example did not answer (${(e as Error).message}); try another source`,
+    );
+  }
+  if (answer.status !== 200)
+    throw new RecordError(`the example answered ${answer.status}; try another link or source`);
+  if (/captcha|sign in|api[ _-]?key/i.test(answer.body.slice(0, 2000)) && !/json/.test(answer.type))
+    throw new RecordError('the example asks for a key or a login; find a free source with no key');
+  return {
+    data: text(args.data, 120),
+    original: text(args.original, 200),
+    host,
+    example,
+    updates: text(args.updates, 120),
+    history: text(args.history, 200),
+  };
+}
+
+const screenItems = (v: unknown): ScreenItem[] =>
+  (Array.isArray(v) ? v : [])
+    .map((x: { kind?: unknown; text?: unknown; detail?: unknown }) => ({
+      kind: (SCREEN_KINDS as readonly unknown[]).includes(x?.kind)
+        ? (x.kind as ScreenItem['kind'])
+        : 'text',
+      text: text(x?.text, 120),
+      detail: text(x?.detail, 200),
+    }))
+    .filter((x) => x.text || x.detail)
+    .slice(0, LIMITS.screen);
+
 const details = (v: unknown) =>
   (Array.isArray(v) ? v : [])
     .map((d: { name?: unknown; detail?: unknown }) => ({
@@ -118,7 +215,8 @@ export async function writeResearch(dir: string, r: Research) {
   await rename(`${file}.tmp`, file);
 }
 
-export type RecordKind = 'feature' | 'case' | 'rule' | 'finding' | 'library' | 'question';
+export type RecordKind =
+  'feature' | 'case' | 'rule' | 'finding' | 'library' | 'source' | 'screen' | 'question';
 
 /** One recording tool call; returns what to tell the AI. */
 export async function record(
@@ -140,7 +238,7 @@ export async function record(
     if (r.cases.length >= LIMITS.cases) throw new RecordError(`at most ${LIMITS.cases} cases`);
     const c = {
       input: flat(args.input, 'input'),
-      output: flat(args.output, 'output'),
+      output: values(flat(args.output, 'output')),
       source: source(args.source),
     };
     const key = JSON.stringify(c.input);
@@ -178,6 +276,15 @@ export async function record(
     }
     if (r.libraries.some((l) => l.name === lib.name)) throw new RecordError('already recorded');
     r.libraries.push(lib);
+  } else if (kind === 'source') {
+    if (r.sources.length >= LIMITS.sources)
+      throw new RecordError(`at most ${LIMITS.sources} sources`);
+    const s = await provenSource(args);
+    r.sources = [...r.sources.filter((x) => x.host !== s.host), s];
+  } else if (kind === 'screen') {
+    const items = screenItems(args.items);
+    if (!items.length) throw new RecordError('items is empty');
+    r.screen = items;
   } else {
     const q = text(args.question, 300);
     const options = (Array.isArray(args.options) ? args.options : [])
@@ -194,5 +301,7 @@ export async function record(
     return `library saved: ${l.name} ${l.version} (${l.license}, ${l.weekly} downloads a week), file ${l.file}`;
   }
   if (kind === 'question') return 'question saved: stop now, the owner will answer';
+  if (kind === 'source')
+    return `source saved: ${r.sources.at(-1)!.host} answered; the neuron will read it through the Cerebro`;
   return 'saved';
 }

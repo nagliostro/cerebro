@@ -270,6 +270,8 @@ describe('dominus core', () => {
     expect(await call('GET', '/plans/current')).toMatchObject({ id });
     await call('POST', `/plans/${id}/reject`);
     expect((await plan(id)).status).toBe('rejected');
+    // A second tap on Reject is no error.
+    expect(await call('POST', `/plans/${id}/reject`)).toMatchObject({ status: 'rejected' });
     expect(await call('GET', '/plans/current')).toBeNull();
     await expect(call('POST', '/plans', { request: '' })).rejects.toThrow(/400/);
   });
@@ -337,7 +339,7 @@ describe('dominus core', () => {
     });
     expect(started).toContain('garden');
     const open = await call<PlanRow>('GET', '/plans/current?target=garden');
-    expect(open.request).toMatch(/português/);
+    expect(open.request).toMatch(/Translate to Brazilian Portuguese/);
     expect((await until(open.id, 'built', 'failed')).status).toBe('built');
     // Already in that language: nothing more to do.
     const again = await call<{ neurons: string[] }>('POST', '/plans/translate', {

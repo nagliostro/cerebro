@@ -66,6 +66,8 @@ const ICONS = [
   'play',
   'pause',
   'rotate-cw',
+  'arrow-up-down',
+  'globe',
   'copy',
   'download',
   'upload',

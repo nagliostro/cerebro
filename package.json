@@ -15,7 +15,8 @@
     "test": "pnpm -r test",
     "test:e2e": "pnpm --filter @cerebro/web test:e2e",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "i18n:check": "pnpm --filter @cerebro/web i18n:check"
   },
   "devDependencies": {
     "prettier": "^3.9.9",

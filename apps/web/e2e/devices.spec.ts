@@ -1,13 +1,13 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
-// Devices and pairing, with a fake Tailscale (e2e/fake-tailscale.mjs) signed in on "this
+// Devices and pairing, with a fake cloudflared (e2e/fake-cloudflared.mjs) signed in on "this
 // computer": turn on access from outside home, pair a phone by its one-time code, see it in the
 // list and revoke it. They run after the other screens: they change who can enter.
 
 test.use({ locale: 'pt-BR', extraHTTPHeaders: { 'Accept-Language': 'pt-BR,pt;q=0.9' } });
 
-const REMOTE = 'cerebro-e2e.tail-example.ts.net';
+const REMOTE = 'cerebro-e2e.example.com';
 const IPHONE =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
 
@@ -23,7 +23,7 @@ test('the menu leads to the devices, in Settings; this one is listed, and it pas
   await expect(page.getByRole('heading', { name: 'Aparelhos', level: 1 })).toBeVisible();
   await expect(page.getByRole('listitem').filter({ hasText: 'este' })).toHaveCount(1);
   const remote = page.getByRole('region', { name: 'Acesso de fora de casa' });
-  await expect(remote).toContainText(/Tailscale pronto|Ligado/);
+  await expect(remote).toContainText(/Pronto|Ligado/);
   const tags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
   expect((await new AxeBuilder({ page }).withTags(tags).analyze()).violations).toEqual([]);
 });
@@ -38,13 +38,14 @@ test('remote access on; a phone pairs once by its code, and is revoked', async (
   await page.goto('/devices');
   await expect(page).toHaveURL('/settings/devices');
   const remote = page.getByRole('region', { name: 'Acesso de fora de casa' });
-  await expect(remote).toContainText(`Tailscale pronto neste computador (${REMOTE}).`);
+  await expect(remote).toContainText('Pronto. Escreva o endereço do seu domínio');
   await expect(page.getByRole('button', { name: 'Parear um celular' })).toHaveCount(0);
 
   // Before: the remote address is just another host (DNS rebinding).
   expect((await request.get('/locked', { headers: { host: REMOTE } })).status()).toBe(403);
+  await remote.getByLabel('Endereço').fill(REMOTE);
   await remote.getByRole('button', { name: 'Ligar o acesso remoto' }).click();
-  await expect(remote).toContainText(`Ligado: https://${REMOTE}, só para os seus aparelhos.`);
+  await expect(remote).toContainText(`Ligado: https://${REMOTE}.`);
   // After: let in, and sent on over HTTPS (already signed in, the locked screen leads home).
   const inside = await request.get('/locked', { headers: { host: REMOTE }, maxRedirects: 0 });
   expect(inside.status()).toBe(307);
@@ -90,6 +91,7 @@ test('remote access on; a phone pairs once by its code, and is revoked', async (
   await phone.close();
 
   await remote.getByRole('button', { name: 'Desligar' }).click();
-  await expect(remote).toContainText('Tailscale pronto');
+  await expect(remote).toContainText('Pronto');
+  await expect(remote.getByLabel('Endereço')).toHaveValue(REMOTE);
   expect((await request.get('/locked', { headers: { host: REMOTE } })).status()).toBe(403);
 });

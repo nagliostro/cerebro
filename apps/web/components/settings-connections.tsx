@@ -155,9 +155,11 @@ export function ConnectionsPanel({
 
   return (
     <>
-      <p role="status" className="mt-4 min-h-[1lh]">
-        {note}
-      </p>
+      {note && (
+        <p role="status" className="mb-4">
+          {note}
+        </p>
+      )}
 
       <Block title={m.subscription}>
         <ul className="divide-y divide-white/6">

@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./attachments": "./src/research/attachments.ts",
     "./client": "./src/client.ts",
     "./data-dir": "./src/data-dir.ts",
     "./paths": "./src/paths.ts",

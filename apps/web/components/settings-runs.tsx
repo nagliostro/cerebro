@@ -64,15 +64,17 @@ export function RunsPanel({ runs, locale }: { runs: Run[]; locale: Locale }) {
 
   return (
     <>
-      <p role="status" className="mt-4 min-h-[1lh]">
-        {note}
-      </p>
+      {note && (
+        <p role="status" className="mb-4">
+          {note}
+        </p>
+      )}
       {runs.length === 0 ? (
-        <p className="mt-6">{m.none}</p>
+        <p>{m.none}</p>
       ) : (
-        <ul className="mt-2 divide-y divide-white/6">
+        <ul className="divide-y divide-white/6">
           {runs.map((r) => (
-            <li key={r.id} className="grid gap-1 py-3">
+            <li key={r.id} className="grid gap-1 py-3 first:pt-0">
               <div className="flex flex-wrap items-baseline justify-between gap-x-6">
                 <span className="text-(--cb-highlight)">
                   {kindName(r.kind)}

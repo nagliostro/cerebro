@@ -27,6 +27,9 @@ export type Neuron = {
 
 export type Synapse = { a: string; b: string; weight: number };
 export type Link = { reader: string; target: string };
+/** What the Dominus did with a neuron: made it, adjusted it, or researched for it. */
+export type UseKind = 'built' | 'adjusted' | 'research';
+export type Use = { at: number; kind: UseKind; request: string; detail: string; ok: boolean };
 export type GraphView = { neurons: Neuron[]; synapses: Synapse[]; links: Link[] };
 
 // Neuron colors: hues around the circle, skipping violet, lavender and the magenta next to them
@@ -88,6 +91,15 @@ export class Graph {
         day INTEGER NOT NULL,
         PRIMARY KEY (a, b, day)
       );
+      CREATE TABLE IF NOT EXISTS uses (
+        neuron TEXT NOT NULL,
+        at INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        request TEXT NOT NULL,
+        detail TEXT NOT NULL,
+        ok INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS uses_neuron ON uses (neuron, at);
       CREATE TABLE IF NOT EXISTS links (
         reader TEXT NOT NULL,
         target TEXT NOT NULL,
@@ -159,6 +171,7 @@ export class Graph {
     this.db.prepare(`DELETE FROM neurons WHERE id = ?`).run(id);
     this.db.prepare(`DELETE FROM conversations WHERE a = ? OR b = ?`).run(id, id);
     this.db.prepare(`DELETE FROM links WHERE reader = ? OR target = ?`).run(id, id);
+    this.db.prepare(`DELETE FROM uses WHERE neuron = ?`).run(id);
   }
 
   /** The hue the next neuron gets: the allowed one farthest from those in use. */
@@ -192,6 +205,40 @@ export class Graph {
     this.db
       .prepare(`INSERT OR IGNORE INTO conversations (a, b, day) VALUES (?, ?, ?)`)
       .run(a, b, dayOf(at));
+  }
+
+  /** The Dominus used a neuron (the request that led to it, and what it did): shown on its page. */
+  recordUse(
+    id: string,
+    use: { kind: UseKind; request: string; detail?: string; ok?: boolean },
+    at = nowMs(),
+  ) {
+    if (!this.exists(id)) throw new GraphError('unknown neuron');
+    this.db
+      .prepare(`INSERT INTO uses (neuron, at, kind, request, detail, ok) VALUES (?, ?, ?, ?, ?, ?)`)
+      .run(
+        id,
+        at,
+        use.kind,
+        use.request.slice(0, 280),
+        (use.detail ?? '').slice(0, 280),
+        use.ok === false ? 0 : 1,
+      );
+  }
+
+  /** The latest uses of a neuron, newest first, and how many there are in all. */
+  uses(id: string, limit = 50): { total: number; items: Use[] } {
+    const total = (
+      this.db.prepare(`SELECT COUNT(*) AS n FROM uses WHERE neuron = ?`).get(id) as { n: number }
+    ).n;
+    const items = (
+      this.db
+        .prepare(
+          `SELECT at, kind, request, detail, ok FROM uses WHERE neuron = ? ORDER BY at DESC LIMIT ?`,
+        )
+        .all(id, limit) as (Omit<Use, 'ok'> & { ok: number })[]
+    ).map((u) => ({ ...u, ok: u.ok === 1 }));
+    return { total, items };
   }
 
   addLink(reader: string, target: string) {

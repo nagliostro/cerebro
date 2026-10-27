@@ -6,7 +6,8 @@ import { listSessions, SESSION_COOKIE, sessionId } from '@/lib/server/session';
 import { where } from '@/lib/server/where';
 
 // Settings → Devices: who can enter the Cerebro, and pairing a phone (access from outside home
-// through the owner's Tailscale, then a one-time QR). The channel is read only on the computer.
+// through a Cloudflare Tunnel to the owner's domain, then a one-time QR). The channel is read
+// only on the computer.
 export default async function DevicesPage({
   searchParams,
 }: {
@@ -15,7 +16,7 @@ export default async function DevicesPage({
   const locale = pickLocale((await headers()).get('accept-language'));
   const { local } = await where();
   const current = sessionId((await cookies()).get(SESSION_COOKIE)?.value ?? '');
-  // Tailscale's state is not waited for here: the panel asks for it once it is on the screen.
+  // The tunnel's state is not waited for here: the panel asks for it once it is on the screen.
   const devices = await listSessions();
   return (
     <DevicesPanel

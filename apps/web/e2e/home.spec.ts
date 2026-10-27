@@ -19,8 +19,9 @@ test.describe('memória', () => {
     const dominus = page.getByRole('button', { name: 'Dominus' });
     await expect(dominus).toBeVisible();
     // The menu, the Dominus, the four neurons that open their applications and the box to ask
-    // the Dominus (its send button shows only with text); nothing else to touch.
-    await expect(page.getByRole('button')).toHaveCount(2);
+    // the Dominus (its clip; its send button shows only with text); nothing else to touch.
+    await expect(page.getByRole('button')).toHaveCount(3);
+    await expect(page.getByRole('button', { name: 'Anexar imagem ou arquivo' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Abrir menu' })).toBeVisible();
     await expect(page.getByRole('main').getByRole('link')).toHaveCount(4);
     await expect(page.getByRole('textbox', { name: 'Peça ao Dominus' })).toBeVisible();

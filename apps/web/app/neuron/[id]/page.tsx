@@ -7,8 +7,9 @@ import { NeuronFrame } from '@/components/neuron-frame';
 import { NeuronScreen } from '@/components/neuron-screen';
 import { PermissionsPanel } from '@/components/permissions-panel';
 import { TopMenu } from '@/components/top-menu';
+import { UsesPanel, type Uses } from '@/components/uses-panel';
 import { pickLocale, t } from '@/lib/i18n';
-import { appToken, hasApp } from '@/lib/server/app-links';
+import { appToken, appVersion } from '@/lib/server/app-links';
 import { currentPlan } from '@/lib/server/plans';
 import { validNeuronId } from '@/lib/server/require-session';
 
@@ -48,18 +49,23 @@ export default async function NeuronPage({ params }: { params: Promise<{ id: str
 
   const neuron = await coreRequest<Neuron>('GET', `/neurons/${id}`).catch(() => null);
   if (!neuron) notFound();
-  const [contract, permissions, graph, built, plan, sites, visited] = await Promise.all([
+  const [contract, permissions, graph, version, plan, sites, visited, uses] = await Promise.all([
     coreRequest<Contract>('GET', `/neurons/${id}/contract`),
     coreRequest<Permission[]>('GET', `/neurons/${id}/permissions`),
     coreRequest<{ neurons: Neuron[] }>('GET', '/graph'),
-    hasApp(id),
+    appVersion(id),
     currentPlan(id),
     coreRequest<Site[]>('GET', `/neurons/${id}/network`).catch(() => []),
     researchSites(id),
+    coreRequest<Uses>('GET', `/neurons/${id}/uses`).catch(() => ({ total: 0, items: [] })),
   ]);
   // index.html by name: a folder URL ("/") would be redirected without the slash, and the
   // application's relative files would then lose the token.
-  const src = built ? `/apps/${id}/${await appToken(id)}/index.html` : null;
+  // The version tells the frame when the application really changed (see NeuronFrame).
+  const src =
+    version === null
+      ? null
+      : `/apps/${id}/${await appToken(id)}/index.html?locale=${locale}&v=${version}`;
 
   return (
     <div className="flex flex-1 flex-col">
@@ -77,6 +83,7 @@ export default async function NeuronPage({ params }: { params: Promise<{ id: str
         initial={plan}
         tools={
           <>
+            <UsesPanel neuron={id} name={neuron.name} initial={uses} locale={locale} />
             <NetworkPanel
               neuron={id}
               name={neuron.name}

@@ -1,6 +1,6 @@
 // The Navegador, a craft neuron that comes with the Cerebro: the researches it did for copies,
 // newest first, as the Dominus recorded them (the feature, where from, what was found).
-const pt = navigator.language.toLowerCase().startsWith('pt');
+const pt = cerebro.locale.toLowerCase().startsWith('pt');
 const t = pt
   ? {
       lead: 'As pesquisas que fiz para copiar funções, numa janela própria, sem as suas contas.',
@@ -34,7 +34,7 @@ async function show() {
   list.replaceChildren(
     ...items.map(({ data }) => {
       const li = document.createElement('li');
-      const date = new Date(`${data.date}T12:00:00`).toLocaleDateString(navigator.language);
+      const date = new Date(`${data.date}T12:00:00`).toLocaleDateString(cerebro.locale);
       li.append(
         line(data.feature, true),
         line(`${data.target} · ${date}`),

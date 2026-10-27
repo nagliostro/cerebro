@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import { stat } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import { dataDir } from '@cerebro/dominus/data-dir';
@@ -50,10 +50,21 @@ export async function validAppToken(id: string, token: string, now = Date.now())
 /** Where a neuron's application lives: the data folder, never the program folder. */
 export const appDir = (id: string) => path.join(dataDir(), 'neurons', id, 'app');
 
-export async function hasApp(id: string) {
+/**
+ * The application's version: the time of its newest file, or null when it has none. The screen
+ * reloads the application only when this changes, never just because the link was signed again.
+ */
+export async function appVersion(id: string): Promise<number | null> {
   try {
-    return (await stat(path.join(appDir(id), 'index.html'))).isFile();
+    if (!(await stat(path.join(appDir(id), 'index.html'))).isFile()) return null;
+    const files = await readdir(appDir(id), { recursive: true, withFileTypes: true });
+    const times = await Promise.all(
+      files
+        .filter((f) => f.isFile())
+        .map((f) => stat(path.join(f.parentPath, f.name)).then((s) => s.mtimeMs)),
+    );
+    return Math.floor(Math.max(...times));
   } catch {
-    return false;
+    return null;
   }
 }

@@ -40,6 +40,29 @@ test('the application keeps its data through the bridge, and says so at the foot
   await expect(page.frameLocator('iframe').getByText(desc)).toBeVisible();
 });
 
+test('coming back to the window reads the page again, but the application keeps where it was', async ({
+  page,
+}) => {
+  await page.goto('/neuron/financas');
+  const app = page.frameLocator('iframe[title="Aplicação Finanças"]');
+  await expect(app.getByRole('button', { name: 'Novo gasto' })).toBeVisible();
+  const frame = page.frames().find((f) => f.url().includes('/apps/financas/'))!;
+  await frame.evaluate(() => Object.assign(window, { marca: 'aqui' }));
+  // The window hidden and shown again: the screen reconnects and reads the page (a new link).
+  const reread = page.waitForResponse((r) => r.url().includes('_rsc='));
+  await page.evaluate(() => {
+    const hidden = (v: boolean) => {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => v });
+      document.dispatchEvent(new Event('visibilitychange'));
+    };
+    hidden(true);
+    hidden(false);
+  });
+  await reread;
+  await page.waitForTimeout(500);
+  expect(await frame.evaluate(() => (window as { marca?: string }).marca)).toBe('aqui');
+});
+
 test('the application reaches nothing on its own: not the page, storage, cookies or network', async ({
   page,
 }) => {

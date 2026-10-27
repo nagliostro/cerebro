@@ -1,12 +1,17 @@
 import type { MetadataRoute } from 'next';
+import { headers } from 'next/headers';
+
+import { pickLocale, t } from '@/lib/i18n';
 
 // What a phone needs to install the Cerebro as an app: its name, the dark sky and the icons.
 // The manifest is the same for everyone (served without a session).
-export default function manifest(): MetadataRoute.Manifest {
+export default async function manifest(): Promise<MetadataRoute.Manifest> {
+  const locale = pickLocale((await headers()).get('accept-language'));
   return {
     name: 'Cerebro',
     short_name: 'Cerebro',
-    description: 'O ajudante do seu cérebro: as áreas e os objetivos da sua vida, conectados.',
+    description: t(locale).description,
+    lang: locale,
     start_url: '/',
     scope: '/',
     display: 'standalone',

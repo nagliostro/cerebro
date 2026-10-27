@@ -31,22 +31,27 @@ pnpm build
 pnpm start
 ```
 
-O terminal mostra um link para entrar (`http://localhost:3000/?key=...`). Abra-o no navegador:
+O terminal mostra um link para entrar (`http://localhost:3200/?key=...`). Abra-o no navegador:
 ele vale uma vez, por 15 minutos, e deixa aquele navegador conectado. Para outro navegador, abra
-http://localhost:3000 nele e use o novo link que aparece no terminal. Seus dados ficam na pasta de dados do sistema (no Windows,
+http://localhost:3200 nele e use o novo link que aparece no terminal. Seus dados ficam na pasta de dados do sistema (no Windows,
 `%APPDATA%\Cerebro`), fora da pasta do programa: atualizar ou reinstalar não apaga nada.
 
 ## No celular
 
-O Cerebro abre no celular pela sua própria rede do [Tailscale](https://tailscale.com/download)
-(grátis para uso pessoal): nada fica aberto na internet. Instale o Tailscale neste computador e
-no celular, entre com a mesma conta nos dois e, no Cerebro, abra **Configurações → Aparelhos** → **Ligar o
-acesso remoto** → **Parear um celular**. A câmera do celular lê o código e ele entra; para usar
-como aplicativo, adicione à tela de início. Em Aparelhos você vê e revoga cada um.
+O Cerebro abre no celular por um endereço do seu próprio domínio, por um
+[Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
+(grátis; o domínio custa cerca de US$ 10 por ano). O celular não precisa de aplicativo e nenhuma
+porta é aberta no roteador. Registre um domínio na Cloudflare, instale o
+[cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+neste computador e, no Cerebro, abra **Configurações → Aparelhos** → **Entrar na Cloudflare** →
+escreva o endereço → **Ligar o acesso remoto** → **Parear um celular**. A câmera do celular lê o
+código e ele entra; para usar como aplicativo, adicione à tela de início. O endereço chega até a
+porta do Cerebro de qualquer lugar, mas só entram os aparelhos pareados. Em Aparelhos você vê e
+revoga cada um.
 
 ## Desenvolver
 
-`pnpm dev` (http://localhost:3000), `pnpm lint`, `pnpm typecheck`, `pnpm test`,
+`pnpm dev` (http://localhost:3200), `pnpm lint`, `pnpm typecheck`, `pnpm test`,
 `pnpm test:e2e` (Chromium, Firefox e WebKit, em 390, 820 e 1440 px), `pnpm format`.
 
 ## Licença
@@ -70,9 +75,11 @@ AI you already use.
 > talk only through the contract, with your permission. The core talks to your AI (Claude Code, or
 > any API in the OpenAI format), measures the quota and keeps the graph.
 
-**Phone:** install [Tailscale](https://tailscale.com/download) on this computer and on the
-phone (same account), then in the Cerebro open **Settings → Devices** → **Turn on remote access** → **Pair a
-phone** and scan the code. Nothing is opened to the internet.
+**Phone:** register a domain on Cloudflare and install
+[cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+on this computer, then in the Cerebro open **Settings → Devices** → **Sign in to Cloudflare** →
+type the address → **Turn on remote access** → **Pair a phone** and scan the code. No app on the
+phone and no port opened on the router; the address reaches the door, only paired devices go in.
 
 **Install:** Node.js 24+ and pnpm (and Edge or Chrome, already installed, to research sites), then `pnpm install`, `pnpm build`, `pnpm start` and open
 the link the terminal shows (it works once, for 15 minutes; another browser gets a new link). Your data lives in the system's data folder, outside the program folder.

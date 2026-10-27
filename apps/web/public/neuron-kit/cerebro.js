@@ -35,6 +35,8 @@
   });
 
   window.cerebro = Object.freeze({
+    /** The language of the Cerebro's screen ("en", "pt-BR"): the one the owner chose, else the browser's. */
+    locale: new URLSearchParams(location.search).get('locale') || navigator.language,
     /** This neuron's own data, by collection: cerebro.data('gastos').create({...}). */
     data: collection,
     /** Asks another neuron, through its contract: cerebro.neurons.call('agenda', 'eventos.list'). */

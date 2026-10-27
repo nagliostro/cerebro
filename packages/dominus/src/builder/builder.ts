@@ -9,11 +9,17 @@ import { listFiles, readText } from '../providers/file-tools.ts';
 import type { AskEvent } from '../providers/types.ts';
 import { buildEstimate, guard, type GuardWindow } from '../quota/guard.ts';
 import type { Queue } from '../queue.ts';
+import {
+  attachmentLines,
+  listAttachments,
+  takeUploads,
+  type Attachment,
+} from '../research/attachments.ts';
 import { readGuide, researchDir } from '../research/guide.ts';
 import { checkLibrary, vendorLibrary, vendorPath, type Library } from '../research/libraries.ts';
 import { readResearch, writeResearch, type Research } from '../research/record.ts';
 import { DEPTH_PAGES, readSettings } from '../settings.ts';
-import { requestLocale } from './language.ts';
+import { readLocale, requestLocale } from './language.ts';
 import type { CheckResult } from '../browser/checks.ts';
 import type { AskPayload } from '../worker.ts';
 import {
@@ -40,6 +46,7 @@ import {
   BUILD_SYSTEM,
   buildPrompt,
   fixLines,
+  languageOf,
   PLAN_SYSTEM,
   planPrompt,
   researchPrompt,
@@ -160,7 +167,7 @@ export class Builder {
     const request = typeof input.request === 'string' ? input.request.trim() : '';
     if (!request || request.length > MAX_REQUEST) throw new BuildError('invalid request');
     // In the language the owner wrote in; the screen's, when the request does not tell.
-    const locale = requestLocale(request) ?? (input.locale === 'pt-BR' ? 'pt-BR' : 'en');
+    const locale = requestLocale(request) ?? readLocale(input.locale);
     let target: string | null = null;
     if (input.target !== undefined && input.target !== null) {
       if (typeof input.target !== 'string' || !this.d.graph.neuron(input.target))
@@ -168,6 +175,18 @@ export class Builder {
       target = input.target;
     }
     const id = this.d.plans.create(request, locale, target);
+    // What the owner attached goes with the request's research folder.
+    let attached: Attachment[] = [];
+    if (input.attachments !== undefined) {
+      const dir = researchDir(this.d.dataDir, id);
+      try {
+        await takeUploads(this.d.dataDir, input.attachments, dir);
+      } catch (e) {
+        this.d.plans.update(id, { status: 'failed', error: (e as Error).message });
+        throw new BuildError((e as Error).message);
+      }
+      attached = await listAttachments(dir);
+    }
     const neurons = this.summaries();
     const steps: Step[] = [
       { kind: 'read', words: words(request) },
@@ -177,8 +196,9 @@ export class Builder {
         similar: target ? null : this.similar(request, neurons),
       },
     ];
-    // A copy (a link to the original), new or into an existing neuron: researched first.
-    if (cloneSource(request)) {
+    // A copy (a link to the original, or a picture of it), new or into an existing neuron:
+    // researched first.
+    if (cloneSource(request) || attached.some((a) => a.kind === 'image')) {
       await this.ensureNavegador();
       const guide = await readGuide(this.d.dataDir);
       this.d.plans.update(id, { steps: [...steps, { kind: 'guide', lessons: guide.lessons }] });
@@ -198,18 +218,15 @@ export class Builder {
    * this one (texts and title, nothing else). Returns the neurons being translated.
    */
   async translate(input: Record<string, unknown>): Promise<string[]> {
-    const locale = input.locale === 'pt-BR' ? 'pt-BR' : 'en';
+    const locale = readLocale(input.locale);
     const busy = new Set(this.d.plans.active().map((p) => p.target));
-    const request =
-      locale === 'pt-BR'
-        ? 'Traduza para português do Brasil todos os textos visíveis desta aplicação (títulos, botões, rótulos, mensagens, datas e formatos) e o título da página. Não mude mais nada: o visual, os dados e o comportamento ficam iguais.'
-        : 'Translate to English every visible text of this application (titles, buttons, labels, messages, date and number formats) and the page title. Change nothing else: the look, the data and the behavior stay the same.';
+    const request = `Translate to ${languageOf(locale)} every visible text of this application (titles, buttons, labels, messages, date and number formats) and the page title. Change nothing else: the look, the data and the behavior stay the same.`;
     const started: string[] = [];
     for (const n of this.summaries()) {
       if (!n.built || busy.has(n.id) || n.id === NAVEGADOR) continue;
       // Its language is the one it was last built in; unknown (shipped with the Cerebro): left alone.
       const last = this.d.plans.recentBuilt(n.id)[0];
-      if (!last || (last.locale === 'pt-BR' ? 'pt-BR' : 'en') === locale) continue;
+      if (!last || readLocale(last.locale) === locale) continue;
       const id = this.d.plans.create(request, locale, n.id);
       this.translating.add(id);
       this.d.plans.update(id, { steps: [{ kind: 'read', words: words(request) }] });
@@ -245,7 +262,7 @@ export class Builder {
           access: 'research',
           cwd: dir,
           kind: 'research',
-          locale: row.locale === 'pt-BR' ? 'pt-BR' : 'en-US',
+          locale: row.locale === 'en' ? 'en-US' : readLocale(row.locale),
           // As far as the owner's depth (Settings → General) lets it go.
           maxPages: DEPTH_PAGES[readSettings(this.d.dataDir).depth],
           system: researchSystem(guide ?? (await readGuide(this.d.dataDir)).text),
@@ -253,6 +270,7 @@ export class Builder {
             request: row.request,
             locale: row.locale,
             exchanges: row.exchanges,
+            attached: await attachmentLines(dir),
           }),
         },
         { maxMs: RESEARCH_MAX_MS, maxAttempts: 1 },
@@ -311,6 +329,7 @@ export class Builder {
             neurons: neurons.filter((n) => n.id !== row.target),
             target,
             research: row.research,
+            attached: await attachmentLines(researchDir(this.d.dataDir, row.id)),
           }),
         },
         { maxMs: THINK_MAX_MS, maxAttempts: 2 },
@@ -362,15 +381,34 @@ export class Builder {
     };
   }
 
-  async answer(id: string, body: { text?: unknown }) {
+  async answer(id: string, body: { text?: unknown; attachments?: unknown }) {
     const row = this.mustGet(id);
     const text = typeof body.text === 'string' ? body.text.trim() : '';
     if (!text || text.length > MAX_REQUEST) throw new BuildError('invalid text');
     if (row.status !== 'questions' && row.status !== 'ready') throw new BuildError('not waiting');
     const kind = row.status === 'questions' ? 'answer' : 'change';
-    this.d.plans.update(id, { exchanges: [...row.exchanges, { kind, text }] });
+    // What came with the answer (a drawing of the screen wanted) joins the request's attachments.
+    let files: string[] = [];
+    if (body.attachments !== undefined)
+      try {
+        files = await takeUploads(
+          this.d.dataDir,
+          body.attachments,
+          researchDir(this.d.dataDir, id),
+        );
+      } catch (e) {
+        throw new BuildError((e as Error).message);
+      }
+    this.d.plans.update(id, {
+      exchanges: [...row.exchanges, { kind, text, ...(files.length ? { files } : {}) }],
+    });
+    // A picture is seen only by the research: it looks at it again before the plan.
+    if (files.some((f) => /\.(png|jpg|webp|gif)$/.test(f))) {
+      await this.ensureNavegador();
+      await this.research(id);
+    }
     // The research asked (which feature): it goes on with the answer before any plan.
-    if (row.status === 'questions' && row.research?.question) await this.research(id);
+    else if (row.status === 'questions' && row.research?.question) await this.research(id);
     else await this.think(id);
   }
 
@@ -461,6 +499,8 @@ export class Builder {
 
   reject(id: string) {
     const row = this.mustGet(id);
+    // Rejected already (a second tap, on a slow connection): it stays as asked.
+    if (row.status === 'rejected') return;
     if (row.status !== 'questions' && row.status !== 'ready' && row.status !== 'failed')
       throw new BuildError('nothing to reject');
     this.d.plans.update(id, { status: 'rejected' });
@@ -617,6 +657,11 @@ export class Builder {
         },
       });
       this.d.graph.recordConversation(DOMINUS_ID, NAVEGADOR);
+      this.d.graph.recordUse(NAVEGADOR, {
+        kind: 'research',
+        request: row.request,
+        detail: research.feature,
+      });
     }
     await this.think(row.id);
   }
@@ -666,6 +711,12 @@ export class Builder {
       }
       plan.libraries = await this.libraries(plan.wanted ?? [], row.research?.libraries ?? []);
       delete plan.wanted;
+      // The live data the research proved: the plan reads it (the owner sees it in the globe).
+      const proven = (row.research?.sources ?? []).map((s) => ({ host: s.host, why: s.data }));
+      plan.internet = [
+        ...proven,
+        ...plan.internet.filter((x) => !proven.some((s) => s.host === x.host)),
+      ].slice(0, 3);
       this.d.plans.update(row.id, {
         status: plan.ready ? 'ready' : 'questions',
         plan,
@@ -864,6 +915,7 @@ export class Builder {
       for (const s of plan.internet ?? []) this.d.contracts.allowSite(id, s.host, s.why);
       // The Dominus built it: their first conversation.
       this.d.graph.recordConversation(DOMINUS_ID, id);
+      this.d.graph.recordUse(id, { kind: row.target ? 'adjusted' : 'built', request: row.request });
       // A copy keeps its research and answer key (every adjustment is checked again), with what
       // still did not match said as gaps.
       let research = row.research;

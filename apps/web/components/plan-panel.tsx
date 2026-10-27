@@ -7,6 +7,8 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import type { Locale, Messages } from '@/lib/i18n';
 
 import type { PlanView } from './construction';
+import { DominusBox } from './dominus-box';
+import { ScreenMock } from './screen-mock';
 
 type Other = { id: string; name: string; color: string };
 
@@ -42,39 +44,6 @@ export function estimateLine(
           ? m.estimate.wait(cost, window, time)
           : m.estimate.cost(cost);
   return { text: `${head}, ${m.estimate.basis(e.basis)}`, cost: true };
-}
-
-/** A floating-label field, the same as everywhere in the Cerebro. */
-function Field({
-  id,
-  label,
-  value,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div className="relative w-full rounded-[10px] bg-white/4 shadow-[inset_0_0_0_1px_var(--cb-outline)]">
-      <textarea
-        id={id}
-        rows={2}
-        value={value}
-        placeholder=" "
-        maxLength={4000}
-        onChange={(e) => onChange(e.target.value)}
-        className="peer block w-full resize-none rounded-[10px] bg-transparent px-3.5 pt-6 pb-2 text-(--cb-highlight) outline-none focus:shadow-[inset_0_0_0_1px_white]"
-      />
-      <label
-        htmlFor={id}
-        className="pointer-events-none absolute top-[17px] left-3.5 transition-all duration-200 peer-focus:top-[7px] peer-focus:text-[10px] peer-[:not(:placeholder-shown)]:top-[7px] peer-[:not(:placeholder-shown)]:text-[10px]"
-      >
-        {label}
-      </label>
-    </div>
-  );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -192,7 +161,7 @@ export function PlanPanel({
   m: Messages['build'];
   windows: Messages['window'];
   locale: Locale;
-  onAnswer: (text: string) => Promise<boolean>;
+  onAnswer: (text: string, files?: File[]) => Promise<boolean>;
   /** Build, with the improvements of the research the owner ticked (their order). */
   onAccept: (improvements: number[]) => void;
   onReject: () => void;
@@ -200,7 +169,6 @@ export function PlanPanel({
   onAdjust: (neuron: string) => void;
 }) {
   const [changing, setChanging] = useState(false);
-  const [text, setText] = useState('');
   const [choice, setChoice] = useState(0);
   const [chosen, setChosen] = useState<number[]>([]);
   const choices = useRef<(HTMLButtonElement | null)[]>([]);
@@ -220,11 +188,10 @@ export function PlanPanel({
     primary.current?.focus({ preventScroll: true });
   }, [plan.id, plan.status, changing]);
 
-  async function send() {
-    if (text.trim() && (await onAnswer(text.trim()))) {
-      setText('');
-      setChanging(false);
-    }
+  async function send(text: string, files: File[]) {
+    if (!(await onAnswer(text, files))) return false;
+    setChanging(false);
+    return true;
   }
 
   const estimate = estimateLine(plan.estimate, m, windows, locale);
@@ -346,6 +313,31 @@ export function PlanPanel({
                     )}
                   </div>
                 </Section>
+                {(r.screen?.length ?? 0) > 0 && (
+                  <Section title={m.screen}>
+                    <ScreenMock
+                      items={r.screen}
+                      color={plan.color ?? 'oklch(0.78 0.11 160)'}
+                      pair={{ value: m.mockValue, choice: m.mockChoice }}
+                      label={m.screen}
+                      openLabel={m.screenOpen}
+                      closeLabel={m.close}
+                    />
+                    <p className="mt-1.5">{m.screenNote}</p>
+                  </Section>
+                )}
+                {(r.sources?.length ?? 0) > 0 && (
+                  <Section title={m.dataSources}>
+                    {r.sources.map((s) => (
+                      <p key={s.host}>
+                        <span className="text-(--cb-highlight)">{s.data}</span> ·{' '}
+                        {m.sourceLine(s.host, s.updates)}
+                        <br />
+                        {m.sourceOriginal(s.original)}
+                      </p>
+                    ))}
+                  </Section>
+                )}
                 {r.cases.length > 0 && (
                   <Section title={m.answerKey(r.cases.length)}>
                     <Cases cases={r.cases} more={m.showCases(r.cases.length)} />
@@ -532,15 +524,20 @@ export function PlanPanel({
           </>
         ) : asking || changing ? (
           <>
-            <Field
-              id="plan-answer"
+            {/* The same box as the Dominus's: only what it is about changes. */}
+            <DominusBox
+              docked
+              autoFocus={changing}
               label={asking ? m.answers : m.changes}
-              value={text}
-              onChange={setText}
+              sendLabel={asking ? m.reply : m.redo}
+              stopLabel={m.stop}
+              attachLabel={m.attach}
+              removeLabel={m.removeAttachment}
+              tooMany={m.attachLimits}
+              busy={false}
+              onSend={send}
+              onStop={() => undefined}
             />
-            <button ref={primary} type="button" onClick={send} className={PRIMARY}>
-              {asking ? m.reply : m.redo}
-            </button>
             <span className="flex-1" />
             {changing ? (
               <button type="button" onClick={() => setChanging(false)} className={PLAIN}>

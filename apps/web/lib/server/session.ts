@@ -1,4 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { t, type Locale } from '@/lib/i18n';
 
 import { privateMtime, readPrivateJson, removePrivate, writePrivateJson } from './private-files';
 
@@ -175,9 +176,6 @@ export async function issuePairKey(now = Date.now()) {
 export const redeemPairKey = (key: string, now = Date.now()) => redeem(PAIR_FILE, key, now);
 
 /** The line the terminal shows. The link points to the address the owner already uses. */
-export function launchLine(origin: string, key: string, portuguese: boolean): string {
-  const link = `${origin}/?${KEY_PARAM}=${key}`;
-  return portuguese
-    ? `Cerebro: para entrar, abra ${link} (vale uma vez, por 15 minutos)`
-    : `Cerebro: to enter, open ${link} (works once, for 15 minutes)`;
+export function launchLine(origin: string, key: string, locale: Locale): string {
+  return t(locale).launch(`${origin}/?${KEY_PARAM}=${key}`);
 }

@@ -1,6 +1,6 @@
 import { privateMtime, readPrivateJson, removePrivate, writePrivateJson } from './private-files';
 
-// The address the owner turned on for their other devices (e.g. "pc.tail1234.ts.net"), kept in
+// The address the owner turned on for their other devices (e.g. "meucerebro.app"), kept in
 // the data folder. Only this name, besides this computer's own, is let in by the proxy, so a
 // web page can still never reach the Cerebro by DNS rebinding.
 

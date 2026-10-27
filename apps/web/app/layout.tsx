@@ -1,10 +1,12 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist_Mono } from 'next/font/google';
 import { headers } from 'next/headers';
+import Script from 'next/script';
 
 import { ServiceWorker } from '@/components/service-worker';
 import { Starfield } from '@/components/starfield';
 import { pickLocale, t } from '@/lib/i18n';
+import { KEEP_INSTALL_OFFER } from '@/lib/install-offer';
 
 import './globals.css';
 
@@ -34,6 +36,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <body className={`${geistMono.variable} flex h-dvh flex-col overflow-hidden`}>
         <Starfield />
         <ServiceWorker />
+        {/* The browser's offer to install, kept for Settings (it may come before React). */}
+        <Script id="install-offer" strategy="beforeInteractive">
+          {KEEP_INSTALL_OFFER}
+        </Script>
         {children}
       </body>
     </html>

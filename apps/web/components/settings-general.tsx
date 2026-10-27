@@ -2,9 +2,27 @@
 
 import { useRef, useState } from 'react';
 
-import { t, type Locale } from '@/lib/i18n';
+import { LOCALES, LOCALE_NAMES, t, type Locale } from '@/lib/i18n';
 
-import { post } from './settings-ui';
+import { useInstall } from './install';
+import { post, PRIMARY } from './settings-ui';
+
+/** The Cerebro as an app on this device: installed, a tap to install, or where the browser has it. */
+export function InstallApp({ locale }: { locale: Locale }) {
+  const m = t(locale).settings.general;
+  const { state, install } = useInstall();
+  if (state === 'unknown') return <p className="min-h-[1lh]" />;
+  return (
+    <>
+      <p role="status">{m.app[state]}</p>
+      {state === 'offer' && (
+        <button type="button" onClick={() => void install()} className={`${PRIMARY} mt-3`}>
+          {m.install}
+        </button>
+      )}
+    </>
+  );
+}
 
 type Depth = 'shallow' | 'medium' | 'deep';
 const DEPTHS: Depth[] = ['shallow', 'medium', 'deep'];
@@ -67,8 +85,8 @@ export function DepthChoice({ initial, locale }: { initial: Depth; locale: Local
   );
 }
 
-type Language = 'auto' | 'pt-BR' | 'en';
-const LANGUAGES: Language[] = ['auto', 'pt-BR', 'en'];
+type Language = 'auto' | Locale;
+const LANGUAGES: Language[] = ['auto', ...LOCALES];
 
 /** The screens' language on this device; the page comes back in it. */
 export function LanguageChoice({ initial, locale }: { initial: Language; locale: Locale }) {
@@ -112,7 +130,7 @@ export function LanguageChoice({ initial, locale }: { initial: Language; locale:
                 : 'shadow-[inset_0_0_0_1px_var(--cb-outline)] hover:text-(--cb-highlight)'
             }`}
           >
-            {m.general.languages[l]}
+            {l === 'auto' ? m.general.languages.auto : LOCALE_NAMES[l]}
           </button>
         ))}
       </div>

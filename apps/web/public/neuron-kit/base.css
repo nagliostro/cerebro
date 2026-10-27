@@ -69,7 +69,9 @@ p {
   margin-top: 24px;
 }
 
-/* Main action: white pill. Secondary: pill at 8%. 44px to touch. */
+/* One size for every control (button, secondary, icon, tab bar): 44px tall, 12px text, 20px to
+   each side. Main action: white pill, a soft glow on hover. Secondary: pill at 8%. Icon: a 44px
+   circle. */
 .cb-botao,
 .cb-botao-sec {
   min-height: 44px;
@@ -77,38 +79,73 @@ p {
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   /* On a phone the row wraps; a button's own words never break. */
   white-space: nowrap;
+  transition:
+    box-shadow 0.15s,
+    background-color 0.15s,
+    color 0.15s;
 }
 .cb-botao {
   background: #fff;
   color: #000;
+}
+.cb-botao:hover {
+  box-shadow:
+    0 0 0 4px oklch(1 0 0 / 10%),
+    0 0 20px oklch(1 0 0 / 22%);
 }
 .cb-botao-sec {
   background: oklch(1 0 0 / 8%);
 }
 .cb-botao-sec:hover {
   color: #fff;
+  background: oklch(1 0 0 / 12%);
+}
+.cb-botao-icone {
+  display: inline-grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 999px;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+.cb-botao-icone:hover {
+  color: #fff;
+  background: oklch(1 0 0 / 8%);
+}
+:is(.cb-botao, .cb-botao-sec, .cb-botao-icone):disabled {
+  opacity: 0.4;
+  box-shadow: none;
+  cursor: default;
 }
 
-/* Tabs in a pill. */
+/* Tabs in a pill: the bar is 44px like a button; the chosen tab is a white pill inside it. */
 .cb-abas {
   display: inline-flex;
   padding: 4px;
   border-radius: 999px;
   background: oklch(1 0 0 / 6%);
-}
-.cb-abas {
   max-width: 100%;
   overflow-x: auto;
   scrollbar-width: none;
 }
 .cb-abas button {
+  /* 4px of bar + 16px = the text sits 20px in, as on a button. */
   min-height: 36px;
   padding: 0 16px;
   border-radius: 999px;
   white-space: nowrap;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+.cb-abas button:hover {
+  color: #fff;
 }
 .cb-abas button[aria-selected='true'] {
   background: #fff;
@@ -175,6 +212,53 @@ p {
 .cb-campo select + label {
   top: 7px;
   font-size: 10px;
+}
+/* A select draws its own chevron; numbers have no spinner (they are typed). */
+.cb-campo select {
+  appearance: none;
+  padding-right: 36px;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23ffffff8c' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+.cb-campo select option {
+  background: oklch(0.15 0.006 265);
+}
+.cb-campo input::-webkit-inner-spin-button,
+.cb-campo input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.cb-campo input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+/* Two fields side by side: the first grows, the second keeps its size (a value and its unit). */
+.cb-dupla {
+  display: grid;
+  grid-template-columns: 1fr minmax(128px, 42%);
+  gap: 8px;
+}
+
+/* The one number the screen is about (a result, a total, a rate): white, larger. One per screen. */
+.cb-destaque {
+  display: block;
+  margin-top: 2px;
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+/* A small chart, drawn inline as <svg class="cb-grafico">: a white line, its last point in the
+   neuron's color. */
+.cb-grafico {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
 }
 
 dialog {

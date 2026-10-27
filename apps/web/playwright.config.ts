@@ -58,8 +58,10 @@ export default defineConfig({
       CEREBRO_DATA_DIR: E2E_DATA_DIR,
       CEREBRO_CLAUDE_BIN: path.join(E2E_DATA_DIR, 'no-claude'),
       CEREBRO_SIMULATED: '1',
-      // A fake Tailscale, signed in, so the remote channel and pairing can be tested anywhere.
-      CEREBRO_TAILSCALE_BIN: path.resolve('e2e/fake-tailscale.mjs'),
+      // A fake cloudflared, signed in, so the remote channel and pairing can be tested anywhere
+      // (on a port of its own, away from a real tunnel on this computer).
+      CEREBRO_CLOUDFLARED_BIN: path.resolve('e2e/fake-cloudflared.mjs'),
+      CEREBRO_TUNNEL_METRICS: '127.0.0.1:20299',
       CEREBRO_SIM_STEP_MS: '700',
     },
     reuseExistingServer: false,

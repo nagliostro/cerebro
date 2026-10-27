@@ -1,37 +1,41 @@
+import { channelStatus, signIn, turnOff, turnOn } from '@/lib/server/cloudflare';
 import { hasSession, unauthorized } from '@/lib/server/require-session';
-import { clearRemoteHost, setRemoteHost } from '@/lib/server/remote';
-import { channelStatus, serve, unserve } from '@/lib/server/tailscale';
 import { where } from '@/lib/server/where';
 
-// Access from outside home, through the owner's Tailscale: on serves this Cerebro to their own
-// devices (HTTPS) and lets that address in; off undoes both. Only from the computer itself.
+// Access from outside home, through a Cloudflare Tunnel to the owner's own domain: sign in once,
+// then on puts this Cerebro at that address and lets it in; off undoes it. Only from the
+// computer itself.
 
 export async function GET() {
   if (!(await hasSession())) return unauthorized();
-  const { local, port } = await where();
+  const { local } = await where();
   if (!local) return Response.json({ error: 'only-here' }, { status: 403 });
-  return Response.json(await channelStatus(port));
+  return Response.json(await channelStatus());
 }
 
 export async function POST(request: Request) {
   if (!(await hasSession())) return unauthorized();
   const { local, port } = await where();
   if (!local) return Response.json({ error: 'only-here' }, { status: 403 });
-  const b = (await request.json().catch(() => null)) as { on?: unknown } | null;
+  const b = (await request.json().catch(() => null)) as {
+    on?: unknown;
+    host?: unknown;
+    signIn?: unknown;
+  } | null;
+  if (b?.signIn === true) {
+    const url = await signIn();
+    if (!url) return Response.json({ error: 'failed', detail: 'sign-in' }, { status: 502 });
+    return Response.json({ url });
+  }
   if (b?.on === true) {
-    const status = await channelStatus(port);
-    if (status.state !== 'ready' && status.state !== 'serving')
-      return Response.json({ error: status.state }, { status: 409 });
-    const r = status.state === 'serving' ? ({ ok: true } as const) : await serve(port);
+    if (typeof b.host !== 'string') return Response.json({ error: 'bad-host' }, { status: 400 });
+    const r = await turnOn(b.host, port);
     if (!r.ok)
       return Response.json(
-        { error: r.enable ? 'enable' : 'failed', detail: r.detail, enable: r.enable },
-        { status: 502 },
+        { error: r.error, detail: r.detail },
+        { status: r.error === 'bad-host' ? 400 : 502 },
       );
-    await setRemoteHost(status.host);
-  } else if (b?.on === false) {
-    await unserve();
-    await clearRemoteHost();
-  } else return Response.json({ error: 'on must be true or false' }, { status: 400 });
-  return Response.json(await channelStatus(port));
+  } else if (b?.on === false) await turnOff();
+  else return Response.json({ error: 'on must be true or false' }, { status: 400 });
+  return Response.json(await channelStatus());
 }

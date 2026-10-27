@@ -2,7 +2,8 @@ import { BrowserSession, BrowserUnavailable } from '../browser/session.ts';
 import { BlockedError } from '../browser/guard.ts';
 import type { ToolAction } from '../providers/types.ts';
 import { RECORDS, researchEvent } from './events.ts';
-import { readResearch, record, RecordError, writeResearch } from './record.ts';
+import { AttachmentError, readAttachment } from './attachments.ts';
+import { readResearch, record, RecordError, SCREEN_KINDS, writeResearch } from './record.ts';
 
 // The research tools, the same for every AI: the Navegador's (open, use and read pages, search)
 // and the ones that record what was found. A CLI that speaks MCP gets them through the Cerebro's
@@ -70,6 +71,12 @@ export const RESEARCH_TOOLS: Spec[] = [
     parameters: obj({ main: { type: 'boolean' } }),
   },
   {
+    name: 'attachment',
+    description:
+      'See a file the owner attached to the request, by its name: an image (a screenshot of the original) or a text.',
+    parameters: obj({ name: str('The file name, as listed in the request') }, ['name']),
+  },
+  {
     name: 'set_feature',
     description:
       'Record what is being copied: the feature, where from, its fields and outputs, and what its server does.',
@@ -96,8 +103,15 @@ export const RESEARCH_TOOLS: Spec[] = [
       'Add one case to the answer key: the inputs used and the outputs the original gave.',
     parameters: obj(
       {
-        input: { type: 'object', description: 'Field name → value as typed' },
-        output: { type: 'object', description: 'Output name → value as shown' },
+        input: {
+          type: 'object',
+          description:
+            'Field name → value as typed. Live data the original reads (a rate, a price) is an input too.',
+        },
+        output: {
+          type: 'object',
+          description: 'Output name → value exactly as shown (a number, a date); never a note',
+        },
         source: str('"observed" or the link of the manual example'),
       },
       ['input', 'output', 'source'],
@@ -131,6 +145,44 @@ export const RESEARCH_TOOLS: Spec[] = [
     parameters: obj(
       { name: str('The npm package, e.g. pdf-lib'), why: str('What it does for the feature') },
       ['name', 'why'],
+    ),
+  },
+  {
+    name: 'add_source',
+    description:
+      'Record where the live data the feature shows comes from (rates, prices, the weather): who gives it to the original, whether that is paid, and the free public site with no key the neuron will read instead. The Cerebro opens the example link to prove it answers; if it does not, try another source.',
+    parameters: obj(
+      {
+        data: str('What it gives, e.g. "exchange rates and their history"'),
+        original: str('Where the original gets it, and if that is paid'),
+        example: str(
+          'An https link of the free source that gives the data, as the neuron will ask',
+        ),
+        updates: str('How fresh it is, e.g. "once a day"'),
+        history: str('How to ask for a period, if it has history (a link pattern)'),
+      },
+      ['data', 'original', 'example', 'updates'],
+    ),
+  },
+  {
+    name: 'set_screen',
+    description:
+      'Record the screen of the original, top to bottom: every element the owner sees while using the feature (the headline sentence, the main number, each field and choice, buttons, tabs, charts, the source and time of the data). The neuron keeps these elements and their order, stacked, in the look of the Cerebro.',
+    parameters: obj(
+      {
+        items: {
+          type: 'array',
+          items: obj(
+            {
+              kind: { type: 'string', enum: [...SCREEN_KINDS] },
+              text: str('What it says, as on the screen'),
+              detail: str('What it does or shows, its format and options'),
+            },
+            ['kind', 'text'],
+          ),
+        },
+      },
+      ['items'],
     ),
   },
   {
@@ -184,12 +236,29 @@ export class ResearchTools {
   async run(
     name: string,
     args: Record<string, unknown>,
-  ): Promise<{ output: string; action: ToolAction; target?: string; image?: Buffer }> {
+  ): Promise<{
+    output: string;
+    action: ToolAction;
+    target?: string;
+    image?: Buffer;
+    /** The image's type; a PNG when not said (the screenshots). */
+    mime?: string;
+  }> {
     const s = (k: string) => (typeof args[k] === 'string' ? (args[k] as string) : '');
     const ev = researchEvent(name, args);
     try {
       const kind = RECORDS[name];
       if (kind) return { output: await record(this.dir, kind, args), ...ev };
+      // What the owner attached is in the research folder: no browser needed.
+      if (name === 'attachment') {
+        const a = await readAttachment(this.dir, s('name'));
+        if (a.kind === 'text')
+          return {
+            output: `<third-party-content>\n${a.text.slice(0, 40_000)}\n</third-party-content>`,
+            ...ev,
+          };
+        return { output: `the attached image ${s('name')}`, ...ev, image: a.data, mime: a.mime };
+      }
       if (ev.action === 'other') return { output: `unknown tool ${name}`, ...ev };
       const b = await this.browser();
       let output: string;
@@ -239,7 +308,7 @@ export class ResearchTools {
           action: 'other',
         };
       const message =
-        e instanceof RecordError || e instanceof BlockedError
+        e instanceof RecordError || e instanceof BlockedError || e instanceof AttachmentError
           ? e.message
           : (e as Error).message.split('\n')[0];
       return { output: `error: ${message}`, action: 'other' };

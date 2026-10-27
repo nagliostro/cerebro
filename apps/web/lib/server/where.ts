@@ -2,6 +2,7 @@ import { headers } from 'next/headers';
 
 import { isLoopbackHost, publicHost, publicOrigin } from '@/lib/request-guard';
 
+import { DEFAULT_PORT } from './port';
 import { remoteHost } from './remote';
 
 /**
@@ -14,6 +15,6 @@ export async function where() {
   const host = publicHost(h.get('host'), h.get('x-forwarded-host'), remote) ?? '';
   const local = isLoopbackHost(host);
   // The port this server answers on, to point the channel to it.
-  const port = Number(host.match(/:(\d+)$/)?.[1] ?? process.env.PORT ?? 3000);
+  const port = Number(host.match(/:(\d+)$/)?.[1] ?? process.env.PORT ?? DEFAULT_PORT);
   return { local, port, remote, origin: publicOrigin(host, remote) };
 }
