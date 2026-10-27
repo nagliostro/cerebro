@@ -52,7 +52,9 @@ revoga cada um.
 ## Desenvolver
 
 `pnpm dev` (http://localhost:3200), `pnpm lint`, `pnpm typecheck`, `pnpm test`,
-`pnpm test:e2e` (Chromium, Firefox e WebKit, em 390, 820 e 1440 px), `pnpm format`.
+`pnpm test:e2e` (Chromium, Firefox e WebKit, em 390, 820 e 1440 px), `pnpm format`. Os testes
+de tela rodam a compilação de `pnpm --filter @cerebro/web build:e2e`, numa pasta própria
+(`.next-e2e`): compilar para eles não mexe no Cerebro que estiver rodando.
 
 ## Licença
 

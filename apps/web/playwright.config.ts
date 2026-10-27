@@ -55,6 +55,8 @@ export default defineConfig({
     // No real AI on purpose (a Claude Code that does not exist), so the screens look the same on
     // every computer; the simulated one plans and builds, without spending anything.
     env: {
+      // Built with `pnpm build:e2e`, apart from the .next a running Cerebro serves.
+      NEXT_DIST_DIR: '.next-e2e',
       CEREBRO_DATA_DIR: E2E_DATA_DIR,
       CEREBRO_CLAUDE_BIN: path.join(E2E_DATA_DIR, 'no-claude'),
       CEREBRO_SIMULATED: '1',

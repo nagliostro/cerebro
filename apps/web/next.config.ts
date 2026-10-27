@@ -20,6 +20,9 @@ function remoteHost(): string[] {
 }
 
 const nextConfig: NextConfig = {
+  // The screen tests build and run in a folder of their own (NEXT_DIST_DIR=.next-e2e): building
+  // them never replaces the files of a Cerebro running from .next.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   // Restart `pnpm dev` after turning remote access on for a new address.
   allowedDevOrigins: remoteHost(),
   // No Next.js badge in the corner: the screen starts empty.
