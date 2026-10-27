@@ -69,8 +69,8 @@ export const KNOBS = {
     max: 6_000,
     initial: 3_000,
     factor: 1.25,
-    live: false,
-    about: "size of the neuron's map",
+    live: true,
+    about: "size of the notes in the neuron's map",
   },
   recentTurns: {
     kind: 'amount',

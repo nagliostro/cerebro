@@ -221,8 +221,15 @@ export function planPrompt(input: {
   locale: string;
   exchanges: Exchange[];
   neurons: NeuronSummary[];
-  /** Adjusting this neuron instead of making a new one: its files, and the code that fits. */
-  target?: NeuronSummary & { files: string[]; code: { path: string; text: string }[] };
+  /**
+   * Adjusting this neuron instead of making a new one: its map, and its code (all of it, or only
+   * the parts that share words with the request: partial).
+   */
+  target?: NeuronSummary & {
+    map: string;
+    code: { path: string; text: string; only?: string[] }[];
+    partial: boolean;
+  };
   /** A copy: what the research found. The plan is that feature, checked by its answer key. */
   research?: Research | null;
   /** What the owner attached (attachmentLines), if anything. */
@@ -244,12 +251,17 @@ export function planPrompt(input: {
   if (input.target) {
     lines.push(
       `Adjust the existing neuron "${input.target.name}" (id ${input.target.id}); keep its name,`,
-      `role and data. "creates" lists what changes. Its files: ${input.target.files.join(', ') || 'none'}.`,
-      `Its collections: ${JSON.stringify(input.target.collections)}.`,
-      'Read its code before asking anything: what it already has is not a question.',
+      'role and data. "creates" lists what changes. Read its map and its code before asking',
+      'anything: what it already has is not a question.',
       '',
+      'Its map:',
+      input.target.map,
+      input.target.partial
+        ? 'Its code, only the parts that share words with the request (the map lists the rest; name in "files" any file the change needs, shown or not):'
+        : 'Its code:',
     );
-    for (const f of input.target.code) lines.push(`--- ${f.path}`, f.text, '');
+    for (const f of input.target.code)
+      lines.push(`--- ${f.path}${f.only ? ` (only: ${f.only.join(', ')})` : ''}`, f.text, '');
   }
   if (input.attached?.length) lines.push(...input.attached, '');
   lines.push('Request:', input.request);
@@ -279,7 +291,13 @@ ${NEURON}
 
 How the application must be made:
 - index.html is the entry. Plain HTML, CSS and JavaScript files, no build step, no frameworks,
-  no packages, no external URL of any kind. Only files inside this folder; no README or notes.
+  no packages, no external URL of any kind. Only files inside this folder; no README (the one
+  note is NOTAS.md, below).
+- NOTAS.md, at the root: the application's notes for whoever changes it next (the Cerebro never
+  serves it). What it does; its screens; where each thing is, as "thing: file and function,
+  selector or id, by name" (never a line number); the owner's decisions to keep; what it does
+  not do yet. In the owner's language, short lines, no code. Write it when building; adjusting,
+  change only the lines that changed.
 - In the <head>: <meta charset="utf-8">, <meta name="viewport" content="width=device-width, initial-scale=1">,
   <link rel="stylesheet" href="/neuron-kit/base.css"> and <script src="/neuron-kit/cerebro.js"></script>.
   Your own files with relative paths (style.css, app.js).
@@ -391,6 +409,10 @@ export function buildPrompt(input: {
     files?: { path: string; where: string }[];
   };
   request: string;
+  /** Adjusting: the neuron's map, so the Builder goes straight to what it names. */
+  map?: string;
+  /** The most NOTAS.md may take, in characters. */
+  notesLimit?: number;
   /** Adjusting: the current files are already in the folder. */
   adjusting: boolean;
   /** A copy: the research, and which of its improvements the owner chose. */
@@ -434,6 +456,8 @@ export function buildPrompt(input: {
     input.adjusting
       ? `The folder already has the current application of "${p.name}". Change it as the plan says, keeping what works and the data's shape.`
       : `Build the neuron "${p.name}". The folder is empty.`,
+    ...(input.adjusting && input.map ? ['', 'Its map:', input.map] : []),
+    ...(input.notesLimit ? [`Keep NOTAS.md under ${input.notesLimit} characters.`] : []),
     ...(input.adjusting && p.files?.length
       ? [
           'Where to change (start here; open another file only if the change needs it, and do not',

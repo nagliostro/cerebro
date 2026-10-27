@@ -1,6 +1,8 @@
 import { cp, lstat, mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 
+import { NOTES } from './map.ts';
+
 // A build writes into a draft folder of its own (builds/<plan>/). Only when it ends well, and its
 // files pass the checks below, does the draft become the neuron's application
 // (neurons/<id>/app/). A failed or canceled build leaves the neuron exactly as it was.
@@ -48,6 +50,8 @@ export async function checkDraft(dir: string): Promise<{ files: number; bytes: n
   async function walk(d: string) {
     for (const name of await readdir(d)) {
       const full = path.join(d, name);
+      // The Builder's notes stay with the application (never served, never counted).
+      if (d === dir && name === NOTES && (await lstat(full)).isFile()) continue;
       const info = await lstat(full);
       if (info.isSymbolicLink()) await rm(full, { force: true });
       else if (info.isDirectory()) await walk(full);

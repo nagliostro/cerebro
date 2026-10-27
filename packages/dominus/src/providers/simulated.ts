@@ -216,6 +216,10 @@ async function build(req: AskRequest, emit: (e: AskEvent) => void) {
         ['index.html', APP.replace('<main>', `<main>\n      <p id="asked">${asked}</p>`)],
         ['style.css', `:root { --cb-cor: ${color}; }\n`],
         ['app.js', SCRIPT],
+        // The notes for the next change, with what was asked last.
+        ['NOTAS.md', `Asked last: ${asked}
+Title: index.html #asked
+`],
       ];
   // A copy with an answer key: the computation and its check. [check-fail-once] gets it wrong
   // in the first round, to test the round back to the Builder.

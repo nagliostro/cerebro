@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { cp, mkdir, rm } from 'node:fs/promises';
+import { cp, mkdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { median, nowMs } from '../clock.ts';
@@ -21,6 +21,7 @@ import { readResearch, writeResearch, type Research } from '../research/record.t
 import { DEPTH_PAGES, readSettings } from '../settings.ts';
 import type { Rating, Tuner } from '../tuning/tuner.ts';
 import { readLocale, requestLocale } from './language.ts';
+import { chooseCode, isOwnCode, MAP, NOTES, outline, renderMap, type MapInput } from './map.ts';
 import type { CheckResult } from '../browser/checks.ts';
 import type { AskPayload } from '../worker.ts';
 import {
@@ -128,6 +129,7 @@ const asking = (question: { text: string; options: string[] }) => ({
   limits: [],
   existing: null,
 });
+const unique = <T>(xs: T[]) => [...new Set(xs)];
 const normalize = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 export class Builder {
@@ -348,29 +350,71 @@ export class Builder {
     );
   }
 
+  /**
+   * A neuron's map (NEURONIO.md): what its code, data, links and sites say, made now, and its
+   * Builder's notes. With its own code, read once for the map and for choosing what to show.
+   */
+  private async mapOf(id: string, maxNotes: number) {
+    const n = this.d.graph.neuron(id)!;
+    const dir = appDir(this.d.dataDir, id);
+    const paths = await listFiles(dir).catch(() => [] as string[]);
+    const code: { path: string; text: string }[] = [];
+    const files: MapInput['files'] = [];
+    for (const p of paths.filter((f) => f !== NOTES)) {
+      const bytes = (await stat(path.join(dir, p)).catch(() => null))?.size ?? 0;
+      const text = isOwnCode(p) ? await readText(dir, p).catch(() => '') : '';
+      if (text) code.push({ path: p, text });
+      if (!p.startsWith('vendor/')) files.push({ path: p, bytes, outline: outline(p, text) });
+    }
+    const notes = paths.includes(NOTES) ? await readText(dir, NOTES).catch(() => '') : '';
+    const collections = new Map<string, MapInput['collections'][number]>();
+    for (const c of this.d.contracts.contract(id).collections)
+      collections.set(c.name, { name: c.name, fields: c.fields.map((f) => f.name), count: c.count });
+    for (const c of this.d.plans.recentBuilt(id)[0]?.plan?.collections ?? [])
+      if (!collections.has(c.name)) collections.set(c.name, { ...c, count: 0 });
+    const links = this.d.graph.view().links;
+    const map = renderMap({
+      id,
+      name: n.name,
+      role: n.role,
+      files,
+      collections: [...collections.values()],
+      reads: links.filter((l) => l.reader === id).map((l) => l.target),
+      readBy: links.filter((l) => l.target === id).map((l) => l.reader),
+      sites: this.d.contracts.sites(id).filter((s) => s.status === 'allowed'),
+      libraries: unique(
+        paths
+          .filter((p) => p.startsWith('vendor/'))
+          .map((p) => p.split('/')[1]!.replace('__', '/')),
+      ),
+      requests: this.d.graph.uses(id, 5).items,
+      notes,
+      maxNotes,
+    });
+    return { map, notes, code };
+  }
+
+  /** The map kept beside the application, for whoever opens the folder; made again on change. */
+  private async writeMap(id: string) {
+    if (!this.d.graph.neuron(id)) return;
+    const { map } = await this.mapOf(id, this.d.tuner.knobs('').mapTokens * 4);
+    await writeFile(path.join(this.d.dataDir, 'neurons', id, MAP), map).catch(() => undefined);
+  }
+
   /** Asks for the plan (again, after answers or changes). */
   private async think(id: string) {
     const row = this.d.plans.get(id)!;
     const knobs = this.d.tuner.knobs(id);
     const neurons = this.summaries();
-    let target:
-      (NeuronSummary & { files: string[]; code: { path: string; text: string }[] }) | undefined;
+    let target: Parameters<typeof planPrompt>[0]['target'];
     if (row.target) {
       const t = neurons.find((n) => n.id === row.target);
       if (t) {
-        const dir = appDir(this.d.dataDir, t.id);
-        const files = await listFiles(dir).catch(() => []);
-        // The code goes with the request (text mode reads it cheaply), up to a limit.
-        const code: { path: string; text: string }[] = [];
-        let size = 0;
-        const limit = knobs.planCode;
-        for (const path of files.filter((f) => /\.(html|css|js|json)$/.test(f))) {
-          const text = await readText(dir, path).catch(() => '');
-          if (size + text.length > limit) break;
-          size += text.length;
-          code.push({ path, text });
-        }
-        target = { ...t, files, code };
+        // Its map, and the code that matters to what the owner said (text mode reads it cheaply),
+        // chosen by code, within the tuning's limit.
+        const { map, notes, code: all } = await this.mapOf(t.id, knobs.mapTokens * 4);
+        const said = [row.request, ...row.exchanges.map((e) => e.text)].join('\n');
+        target = { ...t, map, ...chooseCode(all, said, notes, knobs.planCode) };
       }
     }
     const steps = [
@@ -526,6 +570,8 @@ export class Builder {
             plan: target ? { ...row.plan, name: target.name } : row.plan,
             request: row.request,
             adjusting: hasApp,
+            map: hasApp ? (await this.mapOf(target!.id, knobs.mapTokens * 4)).map : undefined,
+            notesLimit: knobs.mapTokens * 4,
             research: row.research,
             improvements,
             libraries,
@@ -562,6 +608,7 @@ export class Builder {
       throw new BuildError((e as Error).message);
     }
     this.d.plans.update(id, { status: 'undone' });
+    await this.writeMap(row.neuron);
     this.changed(id);
   }
 
@@ -616,7 +663,8 @@ export class Builder {
     const row = this.d.plans.byJob(job);
     if (row?.status === 'researching' && row.researchJob === job)
       return this.researchProgress(row, e);
-    if (e.action !== 'write' || !e.target) return;
+    // The notes are not a part of the application the owner sees being made.
+    if (e.action !== 'write' || !e.target || e.target === NOTES) return;
     if (!row || row.status !== 'building') return;
     const steps = row.steps.map((s) =>
       s.kind === 'file' && s.path !== e.target ? { ...s, done: true } : s,
@@ -1029,6 +1077,7 @@ export class Builder {
         research = { ...research, gaps: [...research.gaps, ...still] };
         await writeResearch(path.join(this.d.dataDir, 'neurons', id), research);
       }
+      await this.writeMap(id);
       this.d.plans.update(row.id, {
         status: 'built',
         neuron: id,

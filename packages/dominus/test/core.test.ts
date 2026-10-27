@@ -300,6 +300,13 @@ describe('dominus core', () => {
     expect(built.steps.at(-1)).toMatchObject({ kind: 'check', files: 3 });
     expect(existsSync(path.join(dir, 'neurons', 'garden', 'app', 'index.html'))).toBe(true);
     expect(existsSync(path.join(dir, 'builds', id))).toBe(false);
+    // Its map beside it: what the code says, and the Builder's notes kept in the application.
+    const map = readFileSync(path.join(dir, 'neurons', 'garden', 'NEURONIO.md'), 'utf8');
+    expect(map).toMatch(/^# Garden \(garden\)/);
+    expect(map).toMatch(/- index\.html \([\d.]+ KB\): .*ids asked/);
+    expect(map).toContain('- reads: notes');
+    expect(map).toContain('built: Garden: what to plant each month');
+    expect(map).toContain('Title: index.html #asked');
     const g = await call<{ neurons: { id: string; color: string }[]; links: object[] }>(
       'GET',
       '/graph',
@@ -336,9 +343,14 @@ describe('dominus core', () => {
     const index = () =>
       readFileSync(path.join(dir, 'neurons', 'garden', 'app', 'index.html'), 'utf8');
     expect(index()).toContain('add a counter');
+    // The map says the latest request, and its notes are the new ones.
+    const map = () => readFileSync(path.join(dir, 'neurons', 'garden', 'NEURONIO.md'), 'utf8');
+    expect(map()).toContain('Asked last: add a counter');
     // Taken back: the previous application returns, and only once.
     expect((await call<PlanRow>('POST', `/plans/${id}/undo`)).status).toBe('undone');
     expect(index()).toContain('Garden: what to plant each month');
+    // Undone, the notes went back with the application.
+    expect(map()).toContain('Asked last: Garden: what to plant each month');
     await expect(call('POST', `/plans/${id}/undo`)).rejects.toThrow(/400/);
     expect((await neurons()).filter((n) => n.name === 'Garden')).toHaveLength(1);
     expect(await call('GET', '/plans/current?target=garden')).toBeNull();
