@@ -25,9 +25,10 @@ export function outline(file: string, text: string): string {
   const names = (re: RegExp) => unique([...text.matchAll(re)].map((m) => m[1]!)).slice(0, 16);
   if (file.endsWith('.js')) {
     const fns = unique([
-      ...names(/^(?:export\s+)?(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)/gm),
+      // Indented too: an application often keeps its functions inside one block.
+      ...names(/^\s*(?:export\s+)?(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)/gm),
       ...names(
-        /^(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:function|\([^)]*\)\s*=>|[A-Za-z_$][\w$]*\s*=>)/gm,
+        /^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:function|\([^)]*\)\s*=>|[A-Za-z_$][\w$]*\s*=>)/gm,
       ),
     ]).slice(0, 16);
     const data = names(/cerebro\.data\(\s*['"]([\w-]+)['"]/g);

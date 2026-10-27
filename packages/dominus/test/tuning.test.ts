@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -158,6 +159,30 @@ describe('the tuning', () => {
     tuner.rate(built, 'good');
     expect(tuner.rating(built)).toBe('good');
     expect(champion()).toMatchObject({ results: 2, good: 1 });
+  });
+
+  it('two cores started at once leave one champion: the one with the most results', () => {
+    run();
+    run();
+    const kept = champion().id;
+    tuner.close();
+    // A second champion, as a second core once made.
+    const db = new DatabaseSync(path.join(dir, 'dominus.db'));
+    db.exec(`DROP INDEX IF EXISTS tuning_one_champion`);
+    db.prepare(
+      `INSERT INTO tuning_variants (knobs, status, created_at) VALUES ('{}', 'champion', 1)`,
+    ).run();
+    db.close();
+    tuner = new Tuner(path.join(dir, 'dominus.db'), () => 0.9);
+    expect(
+      variants()
+        .filter((v) => v.status === 'champion')
+        .map((v) => v.id),
+    ).toEqual([kept]);
+    // And no second one is made by another start.
+    const again = new Tuner(path.join(dir, 'dominus.db'), () => 0.9);
+    again.close();
+    expect(variants().filter((v) => v.status === 'champion')).toHaveLength(1);
   });
 
   it('keeps every value of a variant within limits after a restart', () => {

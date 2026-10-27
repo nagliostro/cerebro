@@ -114,9 +114,7 @@ export type Knobs = {
   readsDeep: number;
 };
 
-const INITIAL = Object.fromEntries(
-  Object.entries(KNOBS).map(([k, v]) => [k, v.initial]),
-) as Knobs;
+const INITIAL = Object.fromEntries(Object.entries(KNOBS).map(([k, v]) => [k, v.initial])) as Knobs;
 
 /** Stored values, with any knob added since then at its initial value and every one in limits. */
 function complete(raw: Partial<Record<string, unknown>>): Knobs {
@@ -170,7 +168,13 @@ export type Outcome = 'built' | 'undone' | 'rejected' | 'failed';
  * otherwise tokens with the cached ones at a tenth).
  */
 export function score(
-  r: { outcome: Outcome; rating: Rating | null; rounds: number; checks: number | null; spent: number },
+  r: {
+    outcome: Outcome;
+    rating: Rating | null;
+    rounds: number;
+    checks: number | null;
+    spent: number;
+  },
   reference: number | null,
 ): number {
   let quality = r.rating ? RATED[r.rating] : OUTCOME[r.outcome]!;
@@ -263,12 +267,26 @@ export class Tuner {
         variant INTEGER NOT NULL
       );
     `);
-    if (!this.champion())
-      this.db
-        .prepare(
-          `INSERT INTO tuning_variants (knobs, status, created_at) VALUES (?, 'champion', ?)`,
-        )
-        .run(JSON.stringify(INITIAL), nowMs());
+    // One champion, always. Two cores starting at once once made one each: the one with the most
+    // results stays (the first, on a tie), and the database refuses a second from now on.
+    const champions = this.db
+      .prepare(
+        `SELECT v.id FROM tuning_variants v LEFT JOIN tuning_results r ON r.variant = v.id
+           AND r.score IS NOT NULL
+         WHERE v.status = 'champion' GROUP BY v.id ORDER BY COUNT(r.score) DESC, v.id`,
+      )
+      .all() as { id: number }[];
+    for (const { id } of champions.slice(1)) this.retire(id);
+    this.db.exec(
+      `CREATE UNIQUE INDEX IF NOT EXISTS tuning_one_champion ON tuning_variants (status)
+       WHERE status = 'champion'`,
+    );
+    this.db
+      .prepare(
+        `INSERT OR IGNORE INTO tuning_variants (knobs, status, created_at)
+         VALUES (?, 'champion', ?)`,
+      )
+      .run(JSON.stringify(INITIAL), nowMs());
   }
 
   close() {
@@ -309,8 +327,7 @@ export class Tuner {
   private result(plan: string): ResultRow | null {
     return (
       (this.db.prepare(`SELECT ${RESULT} FROM tuning_results WHERE plan = ?`).get(plan) as
-        | ResultRow
-        | undefined) ?? null
+        ResultRow | undefined) ?? null
     );
   }
 
@@ -422,10 +439,7 @@ export class Tuner {
   private settle(r: ResultRow & { outcome: Outcome }) {
     // In US$ when the provider says it (cached tokens already cheaper), otherwise in tokens.
     const inUsd = r.costUsd > 0;
-    const s = score(
-      { ...r, spent: inUsd ? r.costUsd : r.tokens },
-      this.reference(r.kind, inUsd),
-    );
+    const s = score({ ...r, spent: inUsd ? r.costUsd : r.tokens }, this.reference(r.kind, inUsd));
     this.db
       .prepare(
         `UPDATE tuning_results SET neuron = ?, outcome = ?, rounds = ?, checks = ?, rating = ?,
@@ -472,7 +486,9 @@ export class Tuner {
     }
     const diff = weighed / counted;
     if (diff > MARGIN) {
-      this.db.prepare(`UPDATE tuning_variants SET status = 'retired' WHERE id = ?`).run(champion.id);
+      this.db
+        .prepare(`UPDATE tuning_variants SET status = 'retired' WHERE id = ?`)
+        .run(champion.id);
       this.db.prepare(`UPDATE tuning_variants SET status = 'champion' WHERE id = ?`).run(id);
     } else if (diff < -MARGIN || results.length >= MAX_RESULTS) this.retire(id);
   }

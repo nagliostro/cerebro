@@ -37,6 +37,9 @@ describe('the outline of a file', () => {
       'title "Gastos"; headings "Meus gastos"; ids novo, salvar, lista',
     );
     expect(outline('style.css', '.cb-linha { } .total { } .total:hover {}')).toBe('classes total');
+    // Inside one block, as many applications keep them.
+    const block = '(() => {\n  function desenhar() {}\n  const trocar = () => {};\n})();';
+    expect(outline('app.js', block)).toBe('functions desenhar, trocar');
   });
 });
 
