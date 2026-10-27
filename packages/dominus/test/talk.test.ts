@@ -15,6 +15,9 @@ describe('a question or a change', () => {
       'o que acontece quando eu apago um item?',
       'Where does the rate come from?',
       'is it saved offline?',
+      // As it was typed once, in quotes.
+      '"De onde vêm os dados?"',
+      '“quantos registros eu tenho?”',
     ])
       expect(isQuestion(q), q).toBe(true);
   });

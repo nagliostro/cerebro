@@ -342,6 +342,9 @@ export class Builder {
    */
   private async quick(row: PlanRow, plan: Plan): Promise<boolean> {
     if (!row.target || !plan.small || plan.links.length || plan.libraries.length) return false;
+    // What reads as a question is never built without a yes, whoever sent it as a request (a
+    // screen from before the conversation did): the planner once "built" an answer.
+    if (isQuestion(row.request)) return false;
     if (!existsSync(path.join(appDir(this.d.dataDir, row.target), 'index.html'))) return false;
     const allowed = new Set(
       this.d.contracts

@@ -129,7 +129,8 @@ const plain = (s: string) =>
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
-    .trim();
+    // Quotes around what was said ("De onde vêm os dados?") are not part of it.
+    .replace(/^[\s"'“”‘’«»`]+|[\s"'“”‘’«»`.!]+$/g, '');
 
 /** Starts as a question about how things are, whatever verbs follow ("como adiciono...?"). */
 const ASKS =

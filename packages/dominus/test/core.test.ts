@@ -410,6 +410,12 @@ describe('dominus core', () => {
     });
     // It may be undone like any other.
     expect((await call<PlanRow>('POST', `/plans/${id}/undo`)).status).toBe('undone');
+    // A question sent as a request (a screen from before the conversation) is never built at once.
+    const asked = await ask('[small] "where does the title come from?"', 'garden');
+    await until(asked, 'ready', 'building', 'built');
+    await new Promise((r) => setTimeout(r, 1000));
+    expect((await plan(asked)).status).toBe('ready');
+    await call('POST', `/plans/${asked}/reject`);
     // A plan that would read another neuron waits for the owner, whatever it says of itself.
     const other = await ask('[small] show the notes [link:notes.pages]', 'garden');
     expect((await until(other, 'ready', 'building', 'built')).plan!.links).toHaveLength(1);
