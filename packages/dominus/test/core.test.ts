@@ -537,7 +537,7 @@ describe('dominus core', () => {
     expect(asked.plan).toMatchObject({
       ready: false,
       questions: ['Which feature should I copy?'],
-      options: ['Yield simulator', 'Comparator'],
+      options: ['Yield simulator', 'Comparator of investments side by side, with the yield of each one after taxes and fees'],
     });
     await call('POST', `/plans/${id}/answer`, { text: 'Yield simulator' });
     const ready = await until(id, 'ready', 'failed');

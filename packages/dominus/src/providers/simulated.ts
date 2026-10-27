@@ -168,7 +168,8 @@ async function research(req: AskRequest, emit: (e: AskEvent) => void) {
   if (req.prompt.includes('[ask-which]') && !answered) {
     await step({ type: 'tool', action: 'record', target: 'question' }, 'question', {
       question: 'Which feature should I copy?',
-      options: ['Yield simulator', 'Comparator'],
+      // One long, as a real research gives them: a sentence, not a word.
+      options: ['Yield simulator', 'Comparator of investments side by side, with the yield of each one after taxes and fees'],
     });
     return 'Asked which feature.';
   }

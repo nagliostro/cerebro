@@ -288,7 +288,8 @@ export async function record(
   } else {
     const q = text(args.question, 300);
     const options = (Array.isArray(args.options) ? args.options : [])
-      .map((o) => text(o, 60))
+      // A sentence fits (the screen wraps it in a choice box): never cut in the middle of a word.
+      .map((o) => text(o, 200))
       .filter(Boolean)
       .slice(0, 6);
     if (!q) throw new RecordError('question is required');

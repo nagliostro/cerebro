@@ -33,6 +33,10 @@ e `.cb-botao-sec` do kit). Nunca crie um botão com altura, largura ou cantos pr
   - **Opção de uma escolha** (`btnOption`): contorno fino; a escolhida fica preenchida em branco
     (profundidade, idioma, papel, permissões, nota do resultado).
 - Só ícone: círculo de 44px (fora desta regra).
+- **Texto que pode não caber num botão nunca vai num botão.** Uma opção que é uma frase (a função
+  a copiar, uma resposta sugerida) é uma **caixa de seleção** (`choiceBox`): largura toda,
+  retângulo de cantos de 10px com contorno fino, o texto em quantas linhas precisar, um círculo à
+  esquerda; a escolhida acende o contorno e preenche o círculo. Nada é cortado.
 
 ## Conversa com o neurônio
 

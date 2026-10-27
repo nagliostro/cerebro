@@ -185,6 +185,12 @@ test('a vague copy asks which feature, as a choice, and goes on with it', async 
   await expect(plan(page)).toContainText('Qual função copiar?', { timeout: 20_000 });
   const options = plan(page).getByRole('radio');
   await expect(options).toHaveCount(2);
+  // A long option is a choice box: all its words in view, none cut.
+  await expect(options.nth(1)).toContainText('after taxes and fees');
+  const cut = await options
+    .nth(1)
+    .evaluate((el) => [...el.querySelectorAll('span')].some((s) => s.scrollWidth > s.clientWidth));
+  expect(cut).toBe(false);
   await expect(options.first()).toHaveAttribute('aria-checked', 'true');
   await options.first().press('ArrowRight');
   await expect(options.nth(1)).toHaveAttribute('aria-checked', 'true');

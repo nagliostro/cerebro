@@ -9,7 +9,7 @@ import type { Locale, Messages } from '@/lib/i18n';
 import type { PlanView } from './construction';
 import { DominusBox } from './dominus-box';
 import { ScreenMock } from './screen-mock';
-import { BTN_PLAIN, BTN_PRIMARY, BTN_SOFT, btnOption } from './button';
+import { BTN_PLAIN, BTN_PRIMARY, BTN_SOFT, choiceBox, choiceMark } from './button';
 
 type Other = { id: string; name: string; color: string };
 
@@ -251,7 +251,8 @@ export function PlanPanel({
 
         {options.length ? (
           <Section title={m.chooseLead(options.length)}>
-            <div role="radiogroup" aria-label={m.chooseTitle} className="flex flex-wrap gap-2">
+            {/* Choice boxes, not buttons: a feature's name is a sentence, never cut. */}
+            <div role="radiogroup" aria-label={m.chooseTitle} className="grid gap-2">
               {options.map((o, i) => (
                 <button
                   key={o}
@@ -271,9 +272,12 @@ export function PlanPanel({
                     setChoice(n);
                     choices.current[n]?.focus();
                   }}
-                  className={btnOption(choice === i)}
+                  className={choiceBox(choice === i)}
                 >
-                  {o}
+                  <span aria-hidden className={choiceMark(choice === i)}>
+                    {choice === i && <span className="size-2 rounded-full bg-white" />}
+                  </span>
+                  <span className="min-w-0 flex-1">{o}</span>
                 </button>
               ))}
             </div>
