@@ -18,6 +18,21 @@ para onde o texto vai. Nunca crie outro campo de conversa.
   anteriores.
 - Ações próprias do contexto (Voltar, Rejeitar) ficam fora da caixa, como botões de texto.
 
+## Conversa com o neurônio
+
+O lápis abre a conversa com o neurônio (`apps/web/components/adjust-panel.tsx`), no padrão dos apps
+de chat (ChatGPT, Claude, Gemini):
+
+- Cabeçalho: o ponto na cor do neurônio e o nome; "x" para fechar.
+- O que o dono disse fica à direita, num balão suave (branco a 8%, cantos de 14px).
+- O que o neurônio diz fica à esquerda, em texto simples, depois do seu ponto, na primeira pessoa
+  ("Feito. …", "Desfiz esse ajuste…"). Abaixo, discreto: data, como respondeu ("resposta
+  direta", "sem IA") e o custo na cor de custo.
+- Vazio, o neurônio se apresenta. O trabalho em andamento é a última fala dele (passos, custo,
+  "Como ficou?", Desfazer).
+- A caixa no pé é a mesma `DominusBox`: "Peça um ajuste a X" até haver resposta direta (fase 4);
+  depois, "Fale com X". `?demo` mostra uma conversa de exemplo com os tipos de resposta.
+
 ## Nota do resultado
 
 Quando um neurônio fica pronto ou é ajustado, a legenda pergunta "Como ficou?" com três pílulas

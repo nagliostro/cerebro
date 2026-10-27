@@ -107,8 +107,8 @@ test('a neuron without an application gets its first one from its own screen', a
   // The pencil opens its adjustments, as in the Cerebro before; no box at the foot.
   await expect(page.getByRole('textbox', { name: 'Peça um ajuste a Pesquisa' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Ajustar Pesquisa' }).click();
-  const adjustments = page.getByRole('region', { name: 'Ajustes de Pesquisa' });
-  await expect(adjustments).toContainText('Nenhum pedido ainda.');
+  const adjustments = page.getByRole('region', { name: 'Conversa com Pesquisa' });
+  await expect(adjustments).toContainText('Oi, eu sou Pesquisa.');
   await ask(page, 'uma lista de fontes para consultar', 'Peça um ajuste a Pesquisa');
   await expect(plan(page)).toContainText('Pesquisa');
   await plan(page).getByRole('button', { name: 'Ajustar' }).click();
@@ -123,7 +123,7 @@ test('a neuron without an application gets its first one from its own screen', a
   await ask(page, 'com uma nota em cada fonte', 'Peça um ajuste a Pesquisa');
   await plan(page).getByRole('button', { name: 'Ajustar' }).click();
   await expect(asked).toHaveText('com uma nota em cada fonte', { timeout: 20_000 });
-  // Both requests are in its list, the newest last, with Undo on it.
+  // Both requests are in its conversation, the newest last, with Undo on it.
   await expect(adjustments).toContainText('uma lista de fontes para consultar');
   await adjustments.getByRole('button', { name: 'Desfazer' }).click();
   await expect(
@@ -242,7 +242,7 @@ test('a neuron that reads the internet shows the globe: its sites, and the owner
   await expect(globe).toContainText('Liberado · ainda não acessado');
   // The screen with the globe and the adjustments open passes WCAG 2.2 AA.
   await page.getByRole('button', { name: 'Ajustar Cotação' }).click();
-  await expect(page.getByRole('region', { name: 'Ajustes de Cotação' })).toContainText(
+  await expect(page.getByRole('region', { name: 'Conversa com Cotação' })).toContainText(
     'Cotação: a do dólar no dia',
   );
   await page.getByRole('button', { name: 'Internet de Cotação' }).click();

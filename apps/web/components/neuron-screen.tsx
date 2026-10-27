@@ -64,7 +64,7 @@ export function NeuronScreen({
         key={neuron.id}
         locale={locale}
         others={others}
-        target={{ id: neuron.id, name: neuron.name }}
+        target={{ id: neuron.id, name: neuron.name, color: neuron.color }}
         initial={initial}
         panel={{ open, setOpen }}
       />

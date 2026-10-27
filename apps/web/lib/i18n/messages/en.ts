@@ -64,9 +64,44 @@ export const en = {
   },
   adjust: {
     open: (name: string) => `Adjust ${name}`,
-    title: (name: string) => `Adjustments of ${name}`,
-    none: 'No requests yet. Write below what to change.',
-    close: 'Close the adjustments',
+    title: (name: string) => `Conversation with ${name}`,
+    hello: (name: string) =>
+      `Hi, I am ${name}. Tell me what to change in me; I show the plan before doing it.`,
+    talk: (name: string) => `Talk to ${name}`,
+    close: 'Close the conversation',
+    // What the neuron says of each request, in its own voice.
+    reply: {
+      adjusted: (understood: string) => `Done. ${understood}`,
+      built: (understood: string) => `I was made like this. ${understood}`,
+      undone: 'I undid that change: the previous version is back.',
+      rejected: 'All right, I left it as it was.',
+      canceled: 'I stopped halfway. Nothing changed.',
+      failed: 'I could not do that. Nothing changed.',
+    },
+    direct: 'direct answer',
+    noAi: 'no AI',
+    demo: 'Sample conversation, to approve the look',
+    demoThread: [
+      {
+        ask: 'Where does the rate come from?',
+        answer:
+          'From the Central Bank (api.bcb.gov.br). I read the rate of the day when you open the screen and keep the last one, so I work offline.',
+        how: 'direct',
+        cost: 0.002,
+      },
+      {
+        ask: 'Show the values without cents',
+        answer: 'Done. The values show rounded, without cents, on every screen.',
+        how: 'adjusted',
+        cost: 0.04,
+      },
+      {
+        ask: 'How many rates do I have saved?',
+        answer: '128, the oldest from March 3.',
+        how: 'noAi',
+        cost: 0,
+      },
+    ],
   },
   permissions: (name: string) => ({
     button: `Permissions: who may ask ${name} for things`,

@@ -168,7 +168,7 @@ export function Construction({
   locale: Locale;
   others: Other[];
   /** Adjusting this neuron (its screen) instead of making a new one. */
-  target?: { id: string; name: string };
+  target?: { id: string; name: string; color?: string };
   initial: PlanView | null;
   memory?: MemoryProps;
   /** A neuron's screen: the box and the work live in its adjustments window, opened by the pencil. */
@@ -436,8 +436,8 @@ export function Construction({
           ))}
         </div>
         <div className="flex gap-2">
-          {/* In the adjustments window, Undo is on the request in its list. */}
-          {target && plan.adjusting && !docked && (
+          {/* In the conversation too: the live word is that request's answer there. */}
+          {target && plan.adjusting && (
             <button
               type="button"
               onClick={() => void act('undo')}
@@ -550,15 +550,17 @@ export function Construction({
         <AdjustPanel
           neuron={target.id}
           name={target.name}
+          color={target.color ?? 'white'}
           locale={locale}
           live={caption}
+          liveId={plan?.id}
           refresh={`${plan?.id}-${plan?.status}-${undone}`}
           onUndo={(id) => void undoPlan(id)}
           onClose={() => panel.setOpen(false)}
-          box={
+          box={(label) => (
             <DominusBox
               docked
-              label={b.askAdjust(target.name)}
+              label={label}
               sendLabel={b.send}
               stopLabel={b.stop}
               attachLabel={b.attach}
@@ -568,7 +570,7 @@ export function Construction({
               onSend={start}
               onStop={() => void stop()}
             />
-          }
+          )}
         />
       )}
 

@@ -65,9 +65,44 @@ export const ptBR: Messages = {
   },
   adjust: {
     open: (name: string) => `Ajustar ${name}`,
-    title: (name: string) => `Ajustes de ${name}`,
-    none: 'Nenhum pedido ainda. Escreva abaixo o que mudar.',
-    close: 'Fechar os ajustes',
+    title: (name: string) => `Conversa com ${name}`,
+    hello: (name: string) =>
+      `Oi, eu sou ${name}. Diga o que mudar em mim; eu mostro o plano antes de fazer.`,
+    talk: (name: string) => `Fale com ${name}`,
+    close: 'Fechar a conversa',
+    // What the neuron says of each request, in its own voice.
+    reply: {
+      adjusted: (understood: string) => `Feito. ${understood}`,
+      built: (understood: string) => `Fui criado assim. ${understood}`,
+      undone: 'Desfiz esse ajuste: voltei à versão anterior.',
+      rejected: 'Combinado, deixei como estava.',
+      canceled: 'Parei no meio. Nada mudou.',
+      failed: 'Não consegui fazer isso. Nada mudou.',
+    },
+    direct: 'resposta direta',
+    noAi: 'sem IA',
+    demo: 'Conversa de exemplo, para aprovar o visual',
+    demoThread: [
+      {
+        ask: 'De onde vem a cotação?',
+        answer:
+          'Do Banco Central (api.bcb.gov.br). Leio a cotação do dia quando você abre a tela e guardo a última, para funcionar sem internet.',
+        how: 'direct',
+        cost: 0.002,
+      },
+      {
+        ask: 'Mostre os valores sem centavos',
+        answer: 'Feito. Os valores aparecem arredondados, sem centavos, em todas as telas.',
+        how: 'adjusted',
+        cost: 0.04,
+      },
+      {
+        ask: 'Quantas cotações eu tenho guardadas?',
+        answer: '128, a mais antiga de 3 de março.',
+        how: 'noAi',
+        cost: 0,
+      },
+    ],
   },
   permissions: (name: string) => ({
     button: `Permissões: quem pode pedir coisas a ${name}`,
