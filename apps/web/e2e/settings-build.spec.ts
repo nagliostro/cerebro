@@ -50,13 +50,15 @@ test('a neuron is renamed, becomes craft, and is removed after a confirmation', 
 test('the research depth is saved and stays after a reload', async ({ page }) => {
   await page.goto('/settings');
   const depth = page.getByRole('radiogroup', { name: 'Profundidade da pesquisa' });
+  // Its own status: the page has others (how to install the app, on a browser that asks).
+  const saved = page.getByRole('region', { name: 'Profundidade da pesquisa' }).getByRole('status');
   await depth.getByRole('radio', { name: /Funda/ }).click();
-  await expect(page.getByRole('status')).toHaveText('Salvo.');
+  await expect(saved).toHaveText('Salvo.');
   await page.reload();
   await expect(depth.getByRole('radio', { name: /Funda/ })).toHaveAttribute('aria-checked', 'true');
   expect(await core('GET', '/settings')).toEqual({ depth: 'deep' });
   await depth.getByRole('radio', { name: /Média/ }).click();
-  await expect(page.getByRole('status')).toHaveText('Salvo.');
+  await expect(saved).toHaveText('Salvo.');
 });
 
 test('an API connection is added from a preset and removed', async ({ page }) => {

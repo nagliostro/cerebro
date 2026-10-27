@@ -80,7 +80,8 @@ test('its files come only with a valid signed link, sandboxed', async ({ page, r
   expect(csp).toContain('sandbox allow-scripts allow-forms allow-downloads');
   expect(csp).toContain("connect-src 'none'");
   expect((await request.get('/apps/financas/forged.token/')).status()).toBe(404);
-  const folder = src.replace(/index\.html$/, '');
+  // The link carries the language and the version after index.html (?locale=…&v=…).
+  const folder = src.replace(/index\.html(\?.*)?$/, '');
   expect((await request.get(`${folder}..%2F..%2Fsessions.json`)).status()).toBe(404);
   // Another neuron's link does not open this one.
   expect((await request.get(src.replace('/financas/', '/agenda/'))).status()).toBe(404);

@@ -37,3 +37,13 @@ export function SettingsMenu({
     </nav>
   );
 }
+
+/**
+ * The open section's name as the page's title, for screen readers only: the screen shows it in
+ * the menu (aria-current), as in the Cerebro before, and the page still has its heading.
+ */
+export function SectionTitle({ sections }: { sections: { href: string; name: string }[] }) {
+  const here = usePathname();
+  const name = sections.find((s) => s.href === here)?.name;
+  return name ? <h1 className="sr-only">{name}</h1> : null;
+}
