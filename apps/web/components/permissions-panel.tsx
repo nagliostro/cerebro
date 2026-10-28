@@ -2,6 +2,8 @@
 
 import { KeyRound } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+
+import { notify } from '@/lib/toast';
 import { BTN_PLAIN, BTN_SOFT, btnOption } from './button';
 
 type Grant = 'view' | 'create' | 'update' | 'delete';
@@ -20,6 +22,7 @@ export type PermissionLabels = {
   nobody: string;
   noData: string;
   failed: string;
+  failedDetail: string;
 };
 
 /**
@@ -45,13 +48,16 @@ export function PermissionsPanel({
   // Neurons added by "allow another" before any operation is on.
   const [added, setAdded] = useState<string[]>([]);
   const [choosing, setChoosing] = useState(false);
-  const [error, setError] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
-    const onDown = (e: PointerEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
+    // A tap on a notice (lib/toast.ts) is not a tap outside: the panel stays.
+    const onDown = (e: PointerEvent) =>
+      !box.current?.contains(e.target as Node) &&
+      !(e.target as Element).closest?.('[data-sonner-toaster]') &&
+      setOpen(false);
     window.addEventListener('keydown', onKey);
     window.addEventListener('pointerdown', onDown);
     return () => {
@@ -61,13 +67,17 @@ export function PermissionsPanel({
   }, [open]);
 
   async function send(body: object) {
-    setError(false);
     const res = await fetch(`/api/neurons/${neuron}/permissions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
     }).catch(() => null);
-    if (!res?.ok) return setError(true);
+    if (!res?.ok)
+      return notify.error({
+        id: 'permission',
+        title: labels.failed,
+        description: labels.failedDetail,
+      });
     setPerms(await res.json());
   }
 
@@ -173,8 +183,6 @@ export function PermissionsPanel({
             </div>
           )}
         </div>
-
-        {error && <p className="mt-3 text-(--cb-highlight)">{labels.failed}</p>}
 
         {collections.length > 0 && (
           <div className="mt-4 flex justify-between gap-3">

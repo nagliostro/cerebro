@@ -5,6 +5,7 @@ import Script from 'next/script';
 
 import { ServiceWorker } from '@/components/service-worker';
 import { Starfield } from '@/components/starfield';
+import { Toaster } from '@/components/toaster';
 import { pickLocale, t } from '@/lib/i18n';
 import { KEEP_INSTALL_OFFER } from '@/lib/install-offer';
 
@@ -31,6 +32,7 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const locale = pickLocale((await headers()).get('accept-language'));
+  const m = t(locale).toast;
   return (
     <html lang={locale}>
       <body className={`${geistMono.variable} flex h-dvh flex-col overflow-hidden`}>
@@ -41,6 +43,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           {KEEP_INSTALL_OFFER}
         </Script>
         {children}
+        {/* The notices of every screen and neuron (lib/toast.ts). */}
+        <Toaster labels={{ region: m.region, close: m.close }} />
       </body>
     </html>
   );

@@ -351,7 +351,12 @@ How the application must be made:
   cerebro.data('name').list() → [{ id, data, createdAt, updatedAt }] (newest first, up to 500)
   cerebro.data('name').get(id) · .create(data) → record · .update(id, data) → record · .delete(id)
   cerebro.neurons.call('neuron-id', 'collection.list') (only the links in the plan)
-  cerebro.notify('short text') shows a notice at the foot of the screen (use it after saving).
+  Notices are the Cerebro's (a toast at the top of the screen), never your own banner or alert():
+  cerebro.notify.success('Expense saved', 'R$ 32.00 at Market') after saving, removing or
+  sending; .error('Could not save', 'the reason, or what to do') when an action fails (catch every
+  bridge call the owner started); .warning(...) for something to watch; .info(...) otherwise.
+  The title says what happened in a few words; the optional second text gives the detail. Not
+  for what the screen already shows changing (a checkbox, a tab); one per action.
   "data" is a plain JSON object, at most 64 KB. Dates as "YYYY-MM-DD" text, money as numbers.
 - The look is the Cerebro's, from the kit; never set fonts, sizes or colors of text yourself:
   <main> holds everything (already centered, 760px). One text style for all (12px, white at

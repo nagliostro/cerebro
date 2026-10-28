@@ -672,7 +672,7 @@ export function PlanPanel({
               stopLabel={m.stop}
               attachLabel={m.attach}
               removeLabel={m.removeAttachment}
-              tooMany={m.attachLimits}
+              tooMany={{ title: m.attachRefused, description: m.attachLimits }}
               busy={false}
               onSend={send}
               onStop={() => undefined}

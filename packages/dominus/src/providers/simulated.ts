@@ -136,7 +136,7 @@ document.getElementById('form').onsubmit = async (e) => {
   e.preventDefault();
   await items.create({ text: document.getElementById('text').value });
   e.target.reset();
-  cerebro.notify('Saved');
+  cerebro.notify.success('Saved');
   show();
 };
 show();

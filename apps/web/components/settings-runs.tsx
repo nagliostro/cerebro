@@ -1,9 +1,10 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 import { t, type Locale } from '@/lib/i18n';
+import { notify, notifyFailure } from '@/lib/toast';
 
 import { PLAIN, post } from './settings-ui';
 
@@ -28,7 +29,6 @@ export function RunsPanel({ runs, locale }: { runs: Run[]; locale: Locale }) {
   const all = t(locale);
   const m = all.settings.runs;
   const router = useRouter();
-  const [note, setNote] = useState('');
   const going = runs.some((r) => LIVE.has(r.status));
 
   // While something runs, read the list again every few seconds (the core keeps the truth).
@@ -41,9 +41,10 @@ export function RunsPanel({ runs, locale }: { runs: Run[]; locale: Locale }) {
   async function stop(id: string) {
     try {
       await post(`/api/runs/${id}/cancel`);
+      notify.success(all.toast.runStopped);
       router.refresh();
     } catch (e) {
-      setNote(all.settings.failed((e as Error).message));
+      notifyFailure(all.toast.runStopFailed, e, all.toast);
     }
   }
 
@@ -64,11 +65,6 @@ export function RunsPanel({ runs, locale }: { runs: Run[]; locale: Locale }) {
 
   return (
     <>
-      {note && (
-        <p role="status" className="mb-4">
-          {note}
-        </p>
-      )}
       {runs.length === 0 ? (
         <p>{m.none}</p>
       ) : (

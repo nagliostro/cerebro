@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 
 import { LOCALES, LOCALE_NAMES, t, type Locale } from '@/lib/i18n';
+import { notify, notifyFailure } from '@/lib/toast';
 
 import { useInstall } from './install';
 import { post, PRIMARY } from './settings-ui';
@@ -30,9 +31,9 @@ const DEPTHS: Depth[] = ['shallow', 'medium', 'deep'];
 
 /** How deep a research goes: one choice, saved at once. */
 export function DepthChoice({ initial, locale }: { initial: Depth; locale: Locale }) {
-  const m = t(locale).settings;
+  const all = t(locale);
+  const m = all.settings;
   const [depth, setDepth] = useState(initial);
-  const [note, setNote] = useState('');
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
 
   async function choose(d: Depth) {
@@ -40,10 +41,14 @@ export function DepthChoice({ initial, locale }: { initial: Depth; locale: Local
     setDepth(d);
     try {
       await post('/api/settings', { depth: d });
-      setNote(m.general.saved);
+      notify.success({
+        id: 'depth',
+        title: all.toast.depthSaved,
+        description: m.general.depths[d],
+      });
     } catch (e) {
       setDepth(before);
-      setNote(m.failed((e as Error).message));
+      notifyFailure(all.toast.depthFailed, e, all.toast);
     }
   }
 
@@ -75,9 +80,6 @@ export function DepthChoice({ initial, locale }: { initial: Depth; locale: Local
           </button>
         ))}
       </div>
-      <p role="status" className="mt-2 min-h-[1lh]">
-        {note}
-      </p>
     </>
   );
 }
@@ -87,8 +89,8 @@ const LANGUAGES: Language[] = ['auto', ...LOCALES];
 
 /** The screens' language on this device; the page comes back in it. */
 export function LanguageChoice({ initial, locale }: { initial: Language; locale: Locale }) {
-  const m = t(locale).settings;
-  const [note, setNote] = useState('');
+  const all = t(locale);
+  const m = all.settings;
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
 
   async function choose(l: Language) {
@@ -97,7 +99,7 @@ export function LanguageChoice({ initial, locale }: { initial: Language; locale:
       await post('/api/locale', { locale: l });
       window.location.reload();
     } catch (e) {
-      setNote(m.failed((e as Error).message));
+      notifyFailure(all.toast.languageFailed, e, all.toast);
     }
   }
 
@@ -127,11 +129,6 @@ export function LanguageChoice({ initial, locale }: { initial: Language; locale:
           </button>
         ))}
       </div>
-      {note && (
-        <p role="status" className="mt-2">
-          {note}
-        </p>
-      )}
     </>
   );
 }

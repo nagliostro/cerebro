@@ -22,7 +22,8 @@
     "qrcode": "1.5.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "server-only": "^0.0.1"
+    "server-only": "^0.0.1",
+    "sonner": "2.0.8"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.11.0",

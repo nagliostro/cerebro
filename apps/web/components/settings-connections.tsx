@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { t, type Locale, type Messages } from '@/lib/i18n';
+import { notify, notifyFailure } from '@/lib/toast';
 
 import { Block, Field, PLAIN, post, PRIMARY, SOFT } from './settings-ui';
 
@@ -69,12 +70,11 @@ export function ConnectionsPanel({
   const [checking, setChecking] = useState(false);
   const [form, setForm] = useState<Form | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
-  const [note, setNote] = useState('');
   const subscriptions = providers.filter((p) => p.capabilities.billing === 'plan');
-  const fail = (e: unknown) => {
-    const why = (e as Error).message;
-    setNote(why === 'no-vault' ? m.noVault : all.settings.failed(why));
-  };
+  const fail = (title: string) => (e: unknown) =>
+    (e as Error).message === 'no-vault'
+      ? notify.error({ title: all.toast.keyNotSaved, description: m.noVault })
+      : notifyFailure(title, e, all.toast);
 
   async function check() {
     setChecking(true);
@@ -82,7 +82,7 @@ export function ConnectionsPanel({
       const list = await post<ProviderHealth[]>('/api/connections/check');
       setHealth(new Map(list.map((p) => [p.id, p.health])));
     } catch (e) {
-      fail(e);
+      fail(all.toast.checkFailed)(e);
     }
     setChecking(false);
   }
@@ -90,7 +90,6 @@ export function ConnectionsPanel({
   function start(row?: ConnectionRow) {
     const preset = Object.keys(presets)[0] ?? '';
     const p = presets[preset];
-    setNote('');
     setForm(
       row
         ? {
@@ -132,11 +131,15 @@ export function ConnectionsPanel({
         key: form.key || undefined,
         monthlyCapUsd: form.cap ? Number(form.cap.replace(',', '.')) : undefined,
       });
+      notify.success({
+        title: all.toast.connectionSaved(form.name),
+        description: all.toast.connectionSavedDetail,
+      });
       setForm(null);
       router.refresh();
       void check();
     } catch (e) {
-      fail(e);
+      fail(all.toast.connectionFailed)(e);
     }
   }
 
@@ -144,9 +147,13 @@ export function ConnectionsPanel({
     try {
       await post(`/api/connections/${id}/remove`);
       setConfirming(null);
+      notify.success({
+        title: all.toast.connectionRemoved(initial.find((c) => c.id === id)?.name ?? id),
+        description: all.toast.connectionRemovedDetail,
+      });
       router.refresh();
     } catch (e) {
-      fail(e);
+      fail(all.toast.connectionRemoveFailed)(e);
     }
   }
 
@@ -155,12 +162,6 @@ export function ConnectionsPanel({
 
   return (
     <>
-      {note && (
-        <p role="status" className="mb-4">
-          {note}
-        </p>
-      )}
-
       <Block title={m.subscription}>
         <ul className="divide-y divide-white/6">
           {subscriptions.map((p) => (

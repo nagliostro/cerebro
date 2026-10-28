@@ -174,3 +174,93 @@ body {
   background: oklch(0.13 0.006 265 / 0.7);
   backdrop-filter: blur(8px);
 }
+
+/*
+ * The notices (components/toaster.tsx, lib/toast.ts): dark glass like the panels, 10px corners,
+ * the one text style; the title in white, the detail at 55%. Only the icon carries the kind, in a
+ * quiet color (never the whole notice). ":root" outranks Sonner's own theme.
+ */
+:root [data-sonner-toaster][data-sonner-theme] {
+  --normal-bg: oklch(0.16 0.008 265 / 0.86);
+  --normal-border: var(--cb-outline);
+  --normal-text: var(--cb-highlight);
+  --border-radius: 10px;
+  --width: 360px;
+  --cb-ok: oklch(0.78 0.12 160);
+  --cb-bad: oklch(0.72 0.13 25);
+  --cb-warn: oklch(0.85 0.12 95);
+  --cb-info: oklch(0.8 0.05 245);
+
+  font-family: var(--font-geist-mono);
+}
+
+:root [data-sonner-toast][data-styled='true'].cb-toast {
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.6;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 8px 24px oklch(0 0 0 / 0.35);
+}
+
+:root .cb-toast [data-title] {
+  font-weight: 500;
+  line-height: 1.6;
+  color: var(--cb-highlight);
+}
+
+:root [data-sonner-toaster] .cb-toast [data-description] {
+  line-height: 1.6;
+  color: var(--cb-text);
+}
+
+:root .cb-toast [data-icon] {
+  margin: 3px 0 0;
+  color: var(--cb-info);
+}
+
+:root .cb-toast[data-type='success'] [data-icon] {
+  color: var(--cb-ok);
+}
+:root .cb-toast[data-type='error'] [data-icon] {
+  color: var(--cb-bad);
+}
+:root .cb-toast[data-type='warning'] [data-icon] {
+  color: var(--cb-warn);
+}
+:root .cb-toast[data-type='loading'] [data-icon] {
+  color: var(--cb-text);
+}
+
+/* The one action: a small pill in the Cerebro's white, as the main button. */
+:root [data-sonner-toast][data-styled='true'].cb-toast [data-button] {
+  align-self: center;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font: inherit;
+  background: var(--cb-highlight);
+  color: oklch(0.13 0.006 265);
+}
+
+/* The close mark: inside the corner, a 24px circle (the whole notice also swipes away). */
+:root [data-sonner-toast][data-styled='true'].cb-toast [data-close-button] {
+  top: 8px;
+  right: 8px;
+  left: auto;
+  width: 24px;
+  height: 24px;
+  transform: none;
+  border: 0;
+  background: transparent;
+  color: var(--cb-text);
+}
+:root [data-sonner-toast][data-styled='true'].cb-toast:hover [data-close-button]:hover {
+  background: oklch(1 0 0 / 8%);
+  color: var(--cb-highlight);
+}
+:root .cb-toast [data-content] {
+  padding-right: 16px;
+}

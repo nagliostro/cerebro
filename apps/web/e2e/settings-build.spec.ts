@@ -40,7 +40,9 @@ test('a neuron is renamed, becomes craft, and is removed after a confirmation', 
   await expect(page.getByRole('link', { name: `${name} novo` })).toBeVisible();
   await page.getByRole('button', { name: `Excluir: ${name} novo` }).click();
   await dialog.getByRole('button', { name: 'Excluir de vez' }).click();
-  await expect(page.getByRole('status').first()).toHaveText(`${name} novo foi excluído.`);
+  await expect(page.getByRole('region', { name: /^Avisos/ })).toContainText(
+    `${name} novo foi excluído`,
+  );
   await expect(page.getByRole('link', { name: `${name} novo` })).toHaveCount(0);
   // And the Memória no longer has it.
   await page.goto('/');
@@ -50,15 +52,16 @@ test('a neuron is renamed, becomes craft, and is removed after a confirmation', 
 test('the research depth is saved and stays after a reload', async ({ page }) => {
   await page.goto('/settings');
   const depth = page.getByRole('radiogroup', { name: 'Profundidade da pesquisa' });
-  // Its own status: the page has others (how to install the app, on a browser that asks).
-  const saved = page.getByRole('region', { name: 'Profundidade da pesquisa' }).getByRole('status');
+  // Said in a notice, with the depth chosen.
+  const saved = page.getByRole('region', { name: /^Avisos/ });
   await depth.getByRole('radio', { name: /Funda/ }).click();
-  await expect(saved).toHaveText('Salvo.');
+  await expect(saved).toContainText('Profundidade da pesquisa salva');
+  await expect(saved).toContainText('Funda');
   await page.reload();
   await expect(depth.getByRole('radio', { name: /Funda/ })).toHaveAttribute('aria-checked', 'true');
   expect(await core('GET', '/settings')).toEqual({ depth: 'deep' });
   await depth.getByRole('radio', { name: /Média/ }).click();
-  await expect(saved).toHaveText('Salvo.');
+  await expect(saved).toContainText('Média');
 });
 
 test('an API connection is added from a preset and removed', async ({ page }) => {

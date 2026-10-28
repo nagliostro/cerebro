@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 
 import { t, type Locale } from '@/lib/i18n';
+import { notify, notifyFailure } from '@/lib/toast';
 
 import { Field, PLAIN, post, PRIMARY, SOFT } from './settings-ui';
 import { btnOption } from './button';
@@ -30,10 +31,8 @@ export function NeuronsPanel({ initial, locale }: { initial: NeuronRow[]; locale
   const [renaming, setRenaming] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [removing, setRemoving] = useState<NeuronRow | null>(null);
-  const [note, setNote] = useState('');
   const dialog = useRef<HTMLDialogElement>(null);
 
-  const fail = (e: unknown) => setNote(all.settings.failed((e as Error).message));
   const change = (id: string, patch: Partial<NeuronRow>) =>
     setRows((r) => r.map((n) => (n.id === id ? { ...n, ...patch } : n)));
 
@@ -43,9 +42,9 @@ export function NeuronsPanel({ initial, locale }: { initial: NeuronRow[]; locale
       const n = await post<{ name: string }>(`/api/neurons/${id}/edit`, { name: name.trim() });
       change(id, { name: n.name });
       setRenaming(null);
-      setNote('');
+      notify.success(all.toast.renamed(n.name));
     } catch (e) {
-      fail(e);
+      notifyFailure(all.toast.renameFailed, e, all.toast);
     }
   }
 
@@ -54,7 +53,7 @@ export function NeuronsPanel({ initial, locale }: { initial: NeuronRow[]; locale
       await post(`/api/neurons/${id}/edit`, { role: value });
       change(id, { role: value });
     } catch (e) {
-      fail(e);
+      notifyFailure(all.toast.roleFailed, e, all.toast);
     }
   }
 
@@ -69,21 +68,16 @@ export function NeuronsPanel({ initial, locale }: { initial: NeuronRow[]; locale
     try {
       await post(`/api/neurons/${n.id}/remove`);
       setRows((r) => r.filter((x) => x.id !== n.id));
-      setNote(m.removed(n.name));
+      notify.success({ title: all.toast.removed(n.name), description: all.toast.removedDetail });
       router.refresh();
     } catch (e) {
-      fail(e);
+      notifyFailure(all.toast.removeFailed, e, all.toast);
     }
     dialog.current?.close();
   }
 
   return (
     <>
-      {note && (
-        <p role="status" className="mb-4">
-          {note}
-        </p>
-      )}
       {rows.length === 0 ? (
         <p>{m.none}</p>
       ) : (

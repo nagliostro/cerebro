@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
+
+import { isNoticeKind, notify } from '@/lib/toast';
 
 /** An application link without its signature: /apps/{id}/{token}/... */
 const unsigned = (src: string) => src.replace(/^(\/apps\/[^/]+\/)[^/]+/, '$1');
@@ -13,14 +15,15 @@ const unsigned = (src: string) => src.replace(/^(\/apps\/[^/]+\/)[^/]+/, '$1');
  */
 export function NeuronFrame({ id, src, title }: { id: string; src: string; title: string }) {
   const frame = useRef<HTMLIFrameElement>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    const say = (text: string) => {
-      setNotice(text.slice(0, 120));
-      clearTimeout(timer);
-      timer = setTimeout(() => setNotice(null), 2400);
+    // A neuron's notice is the Cerebro's (lib/toast.ts), cut to size; the same one said again
+    // replaces itself on screen, so a neuron cannot pile them up.
+    const say = (m: Record<string, unknown>) => {
+      const kind = isNoticeKind(m.kind) ? m.kind : 'info';
+      const title = String(m.text);
+      const description = typeof m.description === 'string' ? m.description : undefined;
+      notify.show(kind, { id: `${id}:${kind}:${title}`, title, description });
     };
     const reply = (requestId: unknown, answer: object) =>
       // The frame's origin is opaque ("null"), so "*" is the only target; the window is its own.
@@ -29,7 +32,7 @@ export function NeuronFrame({ id, src, title }: { id: string; src: string; title
     const onMessage = async (e: MessageEvent) => {
       if (!frame.current || e.source !== frame.current.contentWindow) return;
       const m = e.data as Record<string, unknown> | null;
-      if (m?.cerebro === 'notify' && typeof m.text === 'string') return say(m.text);
+      if (m?.cerebro === 'notify' && typeof m.text === 'string') return say(m);
       if (m?.cerebro !== 'request' || !['data', 'call', 'net'].includes(String(m.kind))) return;
       const body =
         m.kind === 'data'
@@ -58,25 +61,15 @@ export function NeuronFrame({ id, src, title }: { id: string; src: string; title
     if (frame.current && (!loaded || unsigned(loaded) !== unsigned(src))) frame.current.src = src;
     return () => {
       window.removeEventListener('message', onMessage);
-      clearTimeout(timer);
     };
   }, [id, src]);
 
   return (
-    <>
-      <iframe
-        ref={frame}
-        title={title}
-        sandbox="allow-scripts allow-forms allow-downloads"
-        className="w-full flex-1 border-0 bg-transparent [color-scheme:dark]"
-      />
-      <p
-        role="status"
-        aria-live="polite"
-        className={`pointer-events-none fixed bottom-[104px] left-1/2 w-[min(90vw,32rem)] -translate-x-1/2 text-center transition-all duration-300 ${notice ? 'opacity-100' : 'translate-y-2 opacity-0'}`}
-      >
-        {notice}
-      </p>
-    </>
+    <iframe
+      ref={frame}
+      title={title}
+      sandbox="allow-scripts allow-forms allow-downloads"
+      className="w-full flex-1 border-0 bg-transparent [color-scheme:dark]"
+    />
   );
 }

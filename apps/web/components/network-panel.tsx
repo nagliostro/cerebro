@@ -4,6 +4,7 @@ import { Globe } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { t, type Locale } from '@/lib/i18n';
+import { notifyFailure } from '@/lib/toast';
 import { BTN_PRIMARY, BTN_SOFT } from './button';
 
 export type Site = {
@@ -39,14 +40,17 @@ export function NetworkPanel({
   const m = all.network;
   const [open, setOpen] = useState(false);
   const [sites, setSites] = useState(initial);
-  const [error, setError] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const asking = sites.some((s) => s.status === 'requested');
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
-    const onDown = (e: PointerEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
+    // A tap on a notice (lib/toast.ts) is not a tap outside: the panel stays.
+    const onDown = (e: PointerEvent) =>
+      !box.current?.contains(e.target as Node) &&
+      !(e.target as Element).closest?.('[data-sonner-toaster]') &&
+      setOpen(false);
     window.addEventListener('keydown', onKey);
     window.addEventListener('pointerdown', onDown);
     return () => {
@@ -64,13 +68,12 @@ export function NetworkPanel({
   }, [open, neuron]);
 
   async function decide(host: string, allow: boolean) {
-    setError(false);
     const res = await fetch(`/api/neurons/${neuron}/network`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ host, allow }),
     }).catch(() => null);
-    if (!res?.ok) return setError(true);
+    if (!res?.ok) return notifyFailure(all.toast.siteFailed, '', all.toast);
     setSites(await res.json());
   }
 
@@ -142,11 +145,6 @@ export function NetworkPanel({
             </li>
           ))}
         </ul>
-        {error && (
-          <p role="alert" className="mt-3">
-            {all.settings.failed('')}
-          </p>
-        )}
       </section>
     </div>
   );

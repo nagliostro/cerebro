@@ -5,6 +5,16 @@ import nextTs from 'eslint-config-next/typescript';
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  // One way to show a notice: lib/toast.ts (and the Toaster that draws them), never Sonner itself.
+  {
+    ignores: ['lib/toast.ts', 'components/toaster.tsx'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { paths: [{ name: 'sonner', message: 'Use notify from @/lib/toast.' }] },
+      ],
+    },
+  },
   globalIgnores([
     '.next/**',
     '.next-e2e/**',

@@ -3,6 +3,8 @@
 import { ArrowUp, FileText, Paperclip, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 
+import { type Notice, notify } from '@/lib/toast';
+
 const HISTORY = 'cerebro.asked';
 const KEEP = 30;
 
@@ -59,9 +61,8 @@ type Attached = { file: File; url: string | null };
  * The files of the box, as in Claude Code: from the clip, pasted (Ctrl+V) or dropped on it, up to
  * six, each with its preview.
  */
-function useAttachments(tooMany: string) {
+function useAttachments(tooMany: Notice) {
   const [files, setFiles] = useState<Attached[]>([]);
-  const [note, setNote] = useState('');
   const [over, setOver] = useState(false);
 
   // The previews live as long as their file is in the box.
@@ -75,7 +76,7 @@ function useAttachments(tooMany: string) {
     const wanted = [...list];
     const ok = wanted.filter((f) => IMAGE.test(f.type) || TEXT.test(f.name));
     const room = MAX_FILES - files.length;
-    setNote(ok.length < wanted.length || ok.length > room ? tooMany : '');
+    if (ok.length < wanted.length || ok.length > room) notify.warning({ ...tooMany, id: 'attach' });
     const ready = await Promise.all(ok.slice(0, Math.max(0, room)).map(smaller));
     setFiles((now) => [
       ...now,
@@ -92,13 +93,11 @@ function useAttachments(tooMany: string) {
       if (gone?.url) URL.revokeObjectURL(gone.url);
       return now.filter((_, j) => j !== i);
     });
-    setNote('');
   }
 
   function clear() {
     files.forEach((f) => f.url && URL.revokeObjectURL(f.url));
     setFiles([]);
-    setNote('');
   }
 
   /** On the box around the field: a file dragged over it lights it, dropped it joins. */
@@ -125,7 +124,7 @@ function useAttachments(tooMany: string) {
     void add(pasted);
   }
 
-  return { files, note, over, add, remove, clear, drop, onPaste };
+  return { files, over, add, remove, clear, drop, onPaste };
 }
 
 /** The clip button and its hidden file picker. */
@@ -227,8 +226,8 @@ export function DominusBox({
   stopLabel: string;
   attachLabel: string;
   removeLabel: (name: string) => string;
-  /** Said when a file is not one the box takes, or there are too many. */
-  tooMany: string;
+  /** The notice when a file is not one the box takes, or there are too many. */
+  tooMany: Notice;
   busy: boolean;
   onSend: (text: string, files: File[]) => Promise<boolean>;
   onStop: () => void;
@@ -242,7 +241,7 @@ export function DominusBox({
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const box = useAttachments(tooMany);
-  const { files, note, over } = box;
+  const { files, over } = box;
   // Where ↑ ↓ are in the history: null while writing something new.
   const at = useRef<number | null>(null);
 
@@ -344,11 +343,6 @@ export function DominusBox({
           )}
         </div>
       </div>
-      {note && (
-        <p role="status" className="mt-1.5 text-center">
-          {note}
-        </p>
-      )}
     </form>
   );
 }

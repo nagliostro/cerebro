@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { t, type Locale, type Messages } from '@/lib/i18n';
+import { notify } from '@/lib/toast';
 
 import { AdjustPanel } from './adjust-panel';
 import { BackgroundSynapses } from './background-synapses';
@@ -201,7 +202,14 @@ export function Construction({
   const [talked, setTalked] = useState(0);
   const [plan, setPlan] = useState<PlanView | null>(initial);
   const [secs, setSecs] = useState(0);
-  const [problem, setProblem] = useState<string | null>(null);
+  // A request the core refused: what it said, in the owner's words, as a notice.
+  const failed = (e: unknown) => {
+    const why = (e as Error).message;
+    notify[STALE.has(why) ? 'info' : 'error']({
+      title: m.toast.requestFailed,
+      description: problemText(why, b),
+    });
+  };
   const running = !!plan && RUNNING.has(plan.status);
   const open = !!plan && OPEN.has(plan.status);
   const planId = plan?.id;
@@ -325,7 +333,6 @@ export function Construction({
   }, [running, stop]);
 
   async function start(request: string, files: File[] = [], on = target?.id) {
-    setProblem(null);
     try {
       let id: string;
       if (files.length) {
@@ -342,7 +349,7 @@ export function Construction({
       await load(id);
       return true;
     } catch (e) {
-      setProblem(problemText((e as Error).message, b));
+      failed(e);
       return false;
     }
   }
@@ -353,7 +360,6 @@ export function Construction({
    */
   async function say(text: string, files: File[] = []) {
     if (!target || files.length) return start(text, files);
-    setProblem(null);
     try {
       const r = await call<{ kind: 'plan' | 'answer'; id: string }>(
         `/api/neurons/${target.id}/talk`,
@@ -363,22 +369,22 @@ export function Construction({
       else setTalked((n) => n + 1);
       return true;
     } catch (e) {
-      setProblem(problemText((e as Error).message, b));
+      failed(e);
       return false;
     }
   }
 
   /** Takes back the last adjustment (from the adjustments window): the previous one returns. */
   async function undoPlan(id: string) {
-    setProblem(null);
     try {
       await call(`/api/plans/${id}/undo`, {});
       setUndone((n) => n + 1);
+      notify.success({ title: m.toast.undone, description: m.toast.undoneDetail });
       // The one on screen now says it was undone.
       if (planId === id) await load(id);
       router.refresh();
     } catch (e) {
-      setProblem(problemText((e as Error).message, b));
+      failed(e);
     }
   }
 
@@ -391,7 +397,6 @@ export function Construction({
   ) {
     if (!plan || acting.current) return false;
     acting.current = true;
-    setProblem(null);
     try {
       let next: PlanView;
       if (files.length) {
@@ -408,7 +413,7 @@ export function Construction({
       setSecs(0);
       return true;
     } catch (e) {
-      setProblem(problemText((e as Error).message, b));
+      failed(e);
       return false;
     } finally {
       acting.current = false;
@@ -434,8 +439,7 @@ export function Construction({
   const verified = plan?.steps.findLast((s) => s.kind === 'verify');
 
   let caption: React.ReactNode = null;
-  if (problem) caption = <p className="cb-pill">{problem}</p>;
-  else if (plan && running) {
+  if (plan && running) {
     const busy = points.findLast((p) => p.busy);
     caption = (
       <>
@@ -566,7 +570,7 @@ export function Construction({
           stopLabel={b.stop}
           attachLabel={b.attach}
           removeLabel={b.removeAttachment}
-          tooMany={b.attachLimits}
+          tooMany={{ title: b.attachRefused, description: b.attachLimits }}
           busy={running}
           onSend={start}
           onStop={() => void stop()}
@@ -603,7 +607,7 @@ export function Construction({
               stopLabel={b.stop}
               attachLabel={b.attach}
               removeLabel={b.removeAttachment}
-              tooMany={b.attachLimits}
+              tooMany={{ title: b.attachRefused, description: b.attachLimits }}
               busy={running}
               onSend={(text, files) =>
                 plan && open ? act('answer', { text }, files) : say(text, files)

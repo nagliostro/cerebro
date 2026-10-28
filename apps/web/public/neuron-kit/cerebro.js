@@ -34,6 +34,24 @@
     delete: (id) => ask({ kind: 'data', collection: name, op: 'delete', input: { id } }),
   });
 
+  const say = (kind) => (title, description) =>
+    parent.postMessage(
+      {
+        cerebro: 'notify',
+        kind,
+        text: String(title),
+        description: description == null ? undefined : String(description),
+      },
+      '*',
+    );
+  const notify = Object.assign(say('message'), {
+    success: say('success'),
+    error: say('error'),
+    warning: say('warning'),
+    info: say('info'),
+  });
+  Object.freeze(notify);
+
   window.cerebro = Object.freeze({
     /** The language of the Cerebro's screen ("en", "pt-BR"): the one the owner chose, else the browser's. */
     locale: new URLSearchParams(location.search).get('locale') || navigator.language,
@@ -51,7 +69,12 @@
     net: Object.freeze({
       get: (url, why) => ask({ kind: 'net', url: String(url), why: why ? String(why) : '' }),
     }),
-    /** A short notice at the foot of the Cerebro's screen. */
-    notify: (text) => parent.postMessage({ cerebro: 'notify', text: String(text) }, '*'),
+    /**
+     * A notice of the Cerebro (a toast at the top of the screen), the same as its own screens use:
+     * a title that says what happened and, when it helps, a description with the detail.
+     * cerebro.notify.success('Gasto salvo', 'R$ 32,00 em Mercado') · .error · .warning · .info;
+     * cerebro.notify('text') is a plain one.
+     */
+    notify,
   });
 })();

@@ -72,7 +72,9 @@ test('remote access on; a phone pairs once by its code, and is revoked', async (
   await expect(p.getByRole('region', { name: 'Este aparelho entrou no Cerebro' })).toContainText(
     'Compartilhar e depois em Adicionar à Tela de Início',
   );
-  await expect(page.getByRole('status')).toHaveText('Celular pareado.', { timeout: 10_000 });
+  await expect(page.getByRole('region', { name: /^Avisos/ })).toContainText('Celular pareado', {
+    timeout: 10_000,
+  });
   const row = page.getByRole('listitem').filter({ hasText: 'Safari · iOS' });
   await expect(row).toContainText('Celular');
 

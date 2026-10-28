@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
 import { t, type Locale } from '@/lib/i18n';
+import { notify, notifyFailure } from '@/lib/toast';
 import type { SessionInfo } from '@/lib/server/session';
 import type { ChannelStatus } from '@/lib/server/cloudflare';
 
@@ -59,6 +60,7 @@ export function DevicesPanel({
   paired: boolean;
 }) {
   const m = t(locale).devices;
+  const tm = t(locale).toast;
   const router = useRouter();
   const [devices, setDevices] = useState(initial);
   const [channel, setChannel] = useState(initialChannel);
@@ -84,7 +86,6 @@ export function DevicesPanel({
   }, [local, channel, waiting]);
   const [pairing, setPairing] = useState<Pairing | null>(null);
   const [left, setLeft] = useState(0);
-  const [note, setNote] = useState<string | null>(null);
   // What the owner typed; until then, the address used before.
   const [address, setAddress] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -119,54 +120,60 @@ export function DevicesPanel({
       if (list.length > count) {
         setDevices(list);
         setPairing(null);
-        setNote(m.pairDone);
+        notify.success({ title: tm.paired, description: tm.pairedDetail });
       } else if (rest === 0) {
         setPairing(null);
-        setNote(m.pairExpired);
+        notify.warning({ title: tm.pairExpired, description: m.pairExpired });
       }
     }, 1500);
     return () => clearInterval(timer);
-  }, [pairing, devices.length, m]);
+  }, [pairing, devices.length, m, tm]);
 
   async function pair() {
-    setNote(null);
     try {
       const p = await post<Pairing>('/api/pair');
       setPairing(p);
       setLeft(Math.round((p.expiresAt - Date.now()) / 1000));
     } catch {
-      setNote(m.needRemote);
+      notify.warning({ title: tm.pairFailed, description: m.needRemote });
     }
   }
 
   async function switchRemote(on: boolean, host?: string) {
     setBusy(true);
-    setNote(null);
     try {
       setChannel(await post<ChannelStatus>('/api/remote', { on, host }));
     } catch (e) {
       const err = e as { detail?: string; message: string };
-      setNote(err.message === 'bad-host' ? m.badHost : m.failed(err.detail ?? err.message));
+      if (err.message === 'bad-host') notify.error({ title: tm.badHost, description: m.badHost });
+      else notifyFailure(tm.remoteFailed, err.detail ?? err.message, tm);
     }
     setBusy(false);
   }
 
   async function startSignIn() {
     setBusy(true);
-    setNote(null);
     try {
       const { url } = await post<{ url: string }>('/api/remote', { signIn: true });
       setSignIn(url);
     } catch (e) {
-      setNote(m.failed((e as { detail?: string }).detail ?? (e as Error).message));
+      notifyFailure(tm.signInFailed, (e as { detail?: string }).detail ?? (e as Error).message, tm);
     }
     setBusy(false);
   }
 
   async function revoke(d: DeviceRow) {
-    await post(`/api/devices/${d.id}/revoke`).catch(() => undefined);
-    if (d.current) router.replace('/locked');
-    else void reload();
+    try {
+      await post(`/api/devices/${d.id}/revoke`);
+    } catch (e) {
+      return notifyFailure(tm.revokeFailed, e, tm);
+    }
+    if (d.current) return router.replace('/locked');
+    notify.success({
+      title: tm.revoked(m.kind[d.device.kind]),
+      description: `${label(d)}. ${tm.revokedDetail}`,
+    });
+    void reload();
   }
 
   const label = (d: DeviceRow) =>
@@ -233,12 +240,6 @@ export function DevicesPanel({
             {m.cancel}
           </button>
         </section>
-      )}
-
-      {note && (
-        <p role="status" className="mt-4 text-(--cb-highlight)">
-          {note}
-        </p>
       )}
 
       <ul className="mt-5 first:mt-0">

@@ -38,6 +38,31 @@ e `.cb-botao-sec` do kit). Nunca crie um botão com altura, largura ou cantos pr
   retângulo de cantos de 10px com contorno fino, o texto em quantas linhas precisar, um círculo à
   esquerda; a escolhida acende o contorno e preenche o círculo. Nada é cortado.
 
+## Avisos (toasts)
+
+Todo aviso de como uma operação terminou, em qualquer tela e em qualquer neurônio, passa por um
+lugar só: `notify` de `apps/web/lib/toast.ts`, desenhado pelo **Sonner** (`components/toaster.tsx`,
+o mesmo da Vercel e do shadcn/ui). Nada importa o Sonner direto (o ESLint recusa). Nos neurônios,
+`cerebro.notify.success(título, detalhe)` do kit chega ao mesmo aviso. Nunca crie uma faixa,
+`alert()` ou texto de "Salvo." solto na tela.
+
+- **Lugar:** no topo, ao centro, abaixo do menu (como o iOS e o macOS), longe da caixa do Dominus
+  e das legendas do pé. No celular, largura toda com 16px de margem. No máximo 3 à vista; o resto
+  empilha. Passar o mouse abre a pilha; arrastar ou o "x" dispensa.
+- **Aparência:** vidro escuro (como os painéis), contorno fino, cantos de 10px, uma sombra só,
+  suave. Texto do Cerebro: título em branco, detalhe a 55%. Só o ícone (Lucide, 16px) tem a cor do
+  tipo, em tom calmo: verde (sucesso), vermelho (erro), amarelo (atenção), azul-ardósia (info).
+- **Texto:** o título diz o que aconteceu, curto ("Celular pareado", "Não deu para renomear o
+  neurônio"); o detalhe, quando ajuda, dá o motivo ou o próximo passo ("Motivo: …", "Nada mudou.
+  Tente de novo em instantes."). Nunca só "Erro". Os textos ficam em `toast` no i18n.
+- **Tempo:** sucesso 4s, info 5s, atenção 7s, erro 8s. Trabalho demorado: `notify.loading` ou
+  `notify.promise`, que vira sucesso ou erro no mesmo lugar.
+- **Quando:** sucesso depois de salvar, excluir, enviar ou terminar algo; erro sempre que uma ação
+  do dono falha (`notifyFailure(título, erro, textos)` escreve o motivo). Não para o que a tela já
+  mostra mudando (uma permissão marcada, uma aba). O mesmo `id` substitui o aviso em vez de empilhar.
+- **Uma ação, no máximo** ("Desfazer", "Tentar de novo"), numa pílula branca pequena.
+- O andamento do Dominus (a legenda do pé) e o "Como ficou?" não são avisos: ficam onde estão.
+
 ## Link do GitHub
 
 Um link de repositório (github.com/dono/nome) não abre o Navegador. O plano pergunta "Criar um

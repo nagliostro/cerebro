@@ -34,7 +34,7 @@ test('the application keeps its data through the bridge, and says so at the foot
   await app.getByRole('button', { name: 'Novo gasto' }).click();
   await app.getByLabel('Descrição').fill(desc);
   await app.getByRole('button', { name: 'Salvar' }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'Gasto salvo' })).toBeVisible();
+  await expect(page.getByRole('region', { name: /^Avisos/ })).toContainText('Gasto salvo');
   await expect(app.getByText(desc)).toBeVisible();
   await page.reload();
   await expect(page.frameLocator('iframe').getByText(desc)).toBeVisible();
